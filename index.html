@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>D-Garden · 도파민 가든</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #020208;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* 글래스모피즘 패널 공통 스타일 */
+    .glass {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    /* 현재 상태 색상 테마 (JS에서 CSS 변수 업데이트) */
+    :root {
+      --state-color: #00ff99;
+      --state-glow:  rgba(0, 255, 140, 0.4);
+    }
+
+    /* 점수 숫자 */
+    .score-number {
+      font-family: 'Space Mono', monospace;
+      font-size: 4.5rem;
+      font-weight: 700;
+      color: var(--state-color);
+      text-shadow:
+        0 0 20px var(--state-glow),
+        0 0 60px var(--state-glow);
+      line-height: 1;
+      transition: color 0.8s ease, text-shadow 0.8s ease;
+    }
+
+    /* 상태 배지 */
+    .state-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--state-color);
+      color: var(--state-color);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      box-shadow: 0 0 14px var(--state-glow);
+      transition: all 0.8s ease;
+    }
+
+    .state-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--state-color);
+      box-shadow: 0 0 8px var(--state-color);
+      animation: pulse 1.6s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    /* 세로 점수 게이지 */
+    .gauge-track {
+      width: 6px;
+      height: 160px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .gauge-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      border-radius: 999px;
+      background: linear-gradient(to top, var(--state-color), rgba(255,255,255,0.8));
+      box-shadow: 0 0 10px var(--state-glow);
+      transition: height 0.6s ease, background 0.8s ease;
+    }
+
+    /* CPM 숫자 */
+    .cpm-number {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.7);
+    }
+
+    /* 타이핑 상태 표시 */
+    .typing-state {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .typing-state.NORMAL   { color: rgba(255,255,255,0.4); }
+    .typing-state.FOCUS    { color: #00ff99; text-shadow: 0 0 10px rgba(0,255,140,0.8); }
+    .typing-state.RAGE     { color: #ff4444; text-shadow: 0 0 10px rgba(255,60,60,0.8); }
+
+    /* 타이틀 로고 */
+    .logo-text {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      color: rgba(255,255,255,0.25);
+      text-transform: uppercase;
+    }
+
+    /* 상태 전환 시 화면 가장자리 글로우 효과 */
+    .edge-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      box-shadow: inset 0 0 120px var(--state-glow);
+      opacity: 0.3;
+      transition: box-shadow 1.2s ease, opacity 1.2s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Canvas: 프랙탈 나무가 그려지는 배경 -->
+  <canvas id="garden-canvas" class="absolute inset-0"></canvas>
+
+  <!-- 화면 가장자리 상태 글로우 -->
+  <div class="edge-glow" id="edge-glow"></div>
+
+  <!-- UI 오버레이 -->
+  <div class="absolute inset-0 pointer-events-none" id="ui-overlay">
+
+    <!-- 타이틀 (좌측 상단) -->
+    <div class="absolute top-8 left-8">
+      <p class="logo-text">D · G A R D E N</p>
+      <p style="font-size:0.6rem; color:rgba(255,255,255,0.15); letter-spacing:0.08em; margin-top:2px;">
+        Ambient Mental Guardian
+      </p>
+      <!-- Supabase 실시간 연결 상태 -->
+      <p id="realtime-status"
+         style="font-size:0.55rem; font-family:'Space Mono',monospace; margin-top:6px; color:rgba(255,255,255,0.3); letter-spacing:0.06em;">
+        ● OFFLINE
+      </p>
+    </div>
+
+    <!-- 우측 패널: 점수 + 상태 -->
+    <div class="glass absolute right-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-5 px-7 py-8" style="min-width:160px;">
+
+      <!-- 점수 -->
+      <div class="flex flex-col items-center gap-2">
+        <p style="font-size:0.6rem; color:rgba(255,255,255,0.3); letter-spacing:0.15em; text-transform:uppercase;">Mental Score</p>
+        <div class="score-number" id="score-display">50</div>
+      </div>
+
+      <!-- 게이지 + 라벨 -->
+      <div class="flex items-center gap-3">
+        <span style="font-size:0.55rem; color:rgba(255,255,255,0.2); font-family:'Space Mono',monospace;">100</span>
+        <div class="gauge-track">
+          <div class="gauge-fill" id="gauge-fill" style="height:50%"></div>
+        </div>
+        <span style="font-size:0.55rem; color:rgba(255,255,255,0.2); font-family:'Space Mono',monospace;">0</span>
+      </div>
+
+      <!-- 상태 배지 -->
+      <div class="state-badge" id="state-badge">OPTIMAL</div>
+    </div>
+
+    <!-- 좌측 하단 패널: CPM + 타이핑 상태 -->
+    <div class="glass absolute left-8 bottom-8 flex flex-col gap-3 px-6 py-5">
+      <div>
+        <p style="font-size:0.55rem; color:rgba(255,255,255,0.3); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:2px;">Characters / min</p>
+        <div class="flex items-baseline gap-2">
+          <span class="cpm-number" id="cpm-display">0</span>
+          <span style="font-size:0.65rem; color:rgba(255,255,255,0.3);">CPM</span>
+        </div>
+      </div>
+      <div>
+        <p style="font-size:0.55rem; color:rgba(255,255,255,0.3); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Typing State</p>
+        <div class="typing-state NORMAL" id="typing-state-display">NORMAL</div>
+      </div>
+    </div>
+
+    <!-- 초몰입 진입 시 나타나는 중앙 알림 -->
+    <div id="focus-alert"
+      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none"
+      style="opacity:0; transition: opacity 0.4s ease;">
+      <p style="font-family:'Space Mono',monospace; font-size:1.1rem; font-weight:700; color:#00ff99;
+                text-shadow: 0 0 30px rgba(0,255,140,0.9); letter-spacing:0.2em;">⚡ DEEP FOCUS</p>
+    </div>
+
+  </div>
+
+  <!-- 스크립트 로딩 순서: spec → garden → tracker → renderer → main -->
+  <script>
+    // 1단계: spec.json 로드 후 전역 window.SPEC 설정
+    async function bootstrap() {
+      try {
+        const res = await fetch('./spec.json');
+        window.SPEC = await res.json();
+      } catch (e) {
+        console.error('[D-Garden] spec.json 로드 실패:', e);
+        return;
+      }
+
+      // 2단계: 이후 스크립트 순차 로드
+      await loadScript('./garden.js');
+      await loadScript('./engine/tracker.js');
+      await loadScript('./engine/renderer.js');
+      await loadScript('./engine/realtime.js');
+      init();
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload  = resolve;
+        s.onerror = () => reject(new Error(`[D-Garden] 스크립트 로드 실패: ${src}`));
+        document.head.appendChild(s);
+      });
+    }
+
+    bootstrap();
+  </script>
+
+  <script>
+    // 상태별 CSS 변수 (색상 + 글로우)
+    const STATE_CSS = {
+      DORMANT:  { color: '#888899', glow: 'rgba(136,136,153,0.35)' },
+      OPTIMAL:  { color: '#00ff99', glow: 'rgba(0,255,140,0.40)'  },
+      OVERHEAT: { color: '#ee55ff', glow: 'rgba(200,60,255,0.50)' },
+      COOLDOWN: { color: '#c8a8ff', glow: 'rgba(160,90,230,0.45)' },
+    };
+
+    const STATE_LABELS = {
+      DORMANT:  '💤 DORMANT',
+      OPTIMAL:  '🌿 OPTIMAL',
+      OVERHEAT: '🔥 OVERHEAT',
+      COOLDOWN: '✨ COOLDOWN',
+    };
+
+    const STATE_TYPING = {
+      NORMAL: 'NORMAL',
+      FOCUS:  '⚡ DEEP FOCUS',
+      RAGE:   '🔥 RAGE MODE',
+    };
+
+    let prevState = 'OPTIMAL';
+    let prevTyping = 'NORMAL';
+
+    function applyStateCss(state) {
+      const css = STATE_CSS[state] || STATE_CSS.OPTIMAL;
+      document.documentElement.style.setProperty('--state-color', css.color);
+      document.documentElement.style.setProperty('--state-glow',  css.glow);
+    }
+
+    function showFocusAlert() {
+      const el = document.getElementById('focus-alert');
+      el.style.opacity = '1';
+      setTimeout(() => { el.style.opacity = '0'; }, 2500);
+    }
+
+    // 메인 UI 업데이트 루프
+    function init() {
+      const canvas = document.getElementById('garden-canvas');
+      Renderer.init(canvas);
+      Tracker.init(window.SPEC);
+
+      // Supabase Realtime 연결 (관객 메시지 수신)
+      if (typeof RealtimeClient !== 'undefined') {
+        RealtimeClient.init(window.SPEC);
+      }
+
+      function uiLoop() {
+        const { score, state, cpm, typingState, hasCrowdEvent, hasFocusEnter } = Tracker.getState();
+
+        // Renderer 업데이트 (score, state, cpm 전달)
+        Renderer.update(score, state, cpm);
+
+        // 상태 전환 처리
+        if (state !== prevState) {
+          applyStateCss(state);
+          prevState = state;
+        }
+
+        // 파티클 + 씨앗 에너자이즈 트리거
+        if (hasCrowdEvent) {
+          Renderer.spawnParticles(55, 'crowd');
+          Renderer.energizeSeeds();
+        }
+        if (typingState === 'FOCUS' && prevTyping !== 'FOCUS') {
+          Renderer.spawnParticles(30, 'focus');
+          Renderer.energizeSeeds();   // DEEP FOCUS 진입 시에도 씨앗 에너자이즈
+          showFocusAlert();
+        }
+        prevTyping = typingState;
+
+        // DOM 업데이트
+        document.getElementById('score-display').textContent = Math.round(score);
+        document.getElementById('gauge-fill').style.height   = score + '%';
+        document.getElementById('state-badge').textContent   = STATE_LABELS[state] || state;
+        document.getElementById('cpm-display').textContent   = cpm;
+
+        const tsEl = document.getElementById('typing-state-display');
+        tsEl.textContent  = STATE_TYPING[typingState] || typingState;
+        tsEl.className    = 'typing-state ' + typingState;
+
+        requestAnimationFrame(uiLoop);
+      }
+
+      applyStateCss('OPTIMAL');
+      requestAnimationFrame(uiLoop);
+    }
+  </script>
+
+</body>
+</html>

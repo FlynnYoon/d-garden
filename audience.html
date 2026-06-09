@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>D-Garden · 나무에게 에너지를</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      background: #020208;
+      font-family: 'Inter', sans-serif;
+      color: white;
+      overflow: hidden;
+    }
+
+    /* 배경 빛 번짐 */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 24px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.07);
+    }
+
+    /* 키워드 칩 */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 255, 140, 0.30);
+      color: rgba(0, 255, 140, 0.80);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      background: rgba(0, 255, 140, 0.06);
+      user-select: none;
+    }
+    .chip:active {
+      background: rgba(0, 255, 140, 0.18);
+      border-color: rgba(0, 255, 140, 0.70);
+      transform: scale(0.96);
+    }
+
+    /* 전송 버튼 */
+    .send-btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(0,255,140,0.18), rgba(0,200,255,0.14));
+      border: 1px solid rgba(0, 255, 140, 0.40);
+      color: #00ff99;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.92rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 24px rgba(0,255,140,0.12);
+      text-shadow: 0 0 12px rgba(0,255,140,0.7);
+    }
+    .send-btn:active:not(:disabled) {
+      background: linear-gradient(135deg, rgba(0,255,140,0.32), rgba(0,200,255,0.25));
+      transform: scale(0.98);
+    }
+    .send-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* 입력창 */
+    .msg-input {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 16px;
+      color: white;
+      font-size: 1rem;
+      line-height: 1.6;
+      padding: 14px 16px;
+      resize: none;
+      outline: none;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .msg-input::placeholder { color: rgba(255,255,255,0.25); }
+    .msg-input:focus {
+      border-color: rgba(0,255,140,0.45);
+      box-shadow: 0 0 18px rgba(0,255,140,0.10);
+    }
+
+    /* 토스트 */
+    #toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      white-space: nowrap;
+      z-index: 99;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* 연결 상태 도트 */
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-dot.online  { background: #00ff99; box-shadow: 0 0 8px #00ff99; animation: blink 2s infinite; }
+    .status-dot.offline { background: rgba(255,255,255,0.25); }
+    .status-dot.loading { background: #ffaa00; animation: blink 0.8s infinite; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    /* 전송 후 성공 애니메이션 */
+    @keyframes sent-pop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
+    .sent-pop { animation: sent-pop 0.35s ease; }
+  </style>
+</head>
+<body>
+
+  <!-- 배경 빛 오브 -->
+  <div class="bg-orb" style="width:320px;height:320px;top:-80px;right:-60px;background:rgba(0,200,100,0.07);"></div>
+  <div class="bg-orb" style="width:280px;height:280px;bottom:-60px;left:-60px;background:rgba(80,80,255,0.06);"></div>
+
+  <!-- 메인 레이아웃 -->
+  <div class="relative z-10 flex flex-col h-full px-5 py-6" style="max-height: 100dvh;">
+
+    <!-- 상단 로고 + 연결 상태 -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <p style="font-family:'Space Mono',monospace; font-size:0.72rem; font-weight:700; letter-spacing:0.22em; color:rgba(255,255,255,0.22); text-transform:uppercase;">
+          D · G A R D E N
+        </p>
+        <p style="font-size:0.58rem; color:rgba(255,255,255,0.12); letter-spacing:0.06em; margin-top:2px;">
+          Ambient Mental Guardian
+        </p>
+      </div>
+      <div id="status-badge" class="flex items-center gap-2 px-3 py-1.5"
+           style="border-radius:999px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03);">
+        <span class="status-dot loading" id="status-dot"></span>
+        <span id="status-text" style="font-size:0.65rem; color:rgba(255,255,255,0.35); font-family:'Space Mono',monospace;">
+          연결 중...
+        </span>
+      </div>
+    </div>
+
+    <!-- 히어로 섹션 -->
+    <div class="text-center mb-5">
+      <div style="font-size:2.8rem; line-height:1; margin-bottom:10px;">🌿</div>
+      <h1 style="font-size:1.18rem; font-weight:700; color:rgba(255,255,255,0.88); letter-spacing:-0.02em; line-height:1.4;">
+        나무에게 에너지를 보내세요
+      </h1>
+      <p style="font-size:0.75rem; color:rgba(255,255,255,0.35); margin-top:6px; line-height:1.5;">
+        발표자의 도파민 가든이 실시간으로 반응해요
+      </p>
+    </div>
+
+    <!-- 입력 카드 -->
+    <div class="glass flex-1 flex flex-col gap-4 p-5" style="min-height:0;">
+
+      <!-- 텍스트 입력 -->
+      <div class="flex flex-col gap-2 flex-1">
+        <label style="font-size:0.62rem; color:rgba(255,255,255,0.30); letter-spacing:0.12em; text-transform:uppercase;">
+          응원 메시지
+        </label>
+        <textarea
+          id="msg-input"
+          class="msg-input flex-1"
+          style="min-height:90px;"
+          placeholder="발표자에게 응원 메시지를 입력하세요 ✨"
+          maxlength="80"
+          rows="3"
+        ></textarea>
+        <div class="flex justify-end">
+          <span id="char-count" style="font-size:0.6rem; color:rgba(255,255,255,0.20); font-family:'Space Mono',monospace;">0 / 80</span>
+        </div>
+      </div>
+
+      <!-- 빠른 키워드 칩 -->
+      <div>
+        <p style="font-size:0.6rem; color:rgba(255,255,255,0.25); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px;">
+          빠른 응원
+        </p>
+        <div id="chip-container" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- 전송 버튼 -->
+      <button id="send-btn" class="send-btn" disabled>
+        ⚡ 나무에게 전송
+      </button>
+
+    </div>
+
+    <!-- 전송 카운터 -->
+    <div class="text-center mt-4">
+      <p id="sent-count" style="font-size:0.62rem; color:rgba(255,255,255,0.18); font-family:'Space Mono',monospace;">
+        이번 세션 0회 전송
+      </p>
+    </div>
+
+  </div>
+
+  <!-- 전송 성공 토스트 -->
+  <div id="toast" class="glass px-6 py-3">
+    <p style="font-size:0.82rem; font-weight:600; color:#00ff99; text-shadow:0 0 14px rgba(0,255,140,0.8);">
+      ⚡ 나무가 반응했어요!
+    </p>
+  </div>
+
+  <script>
+    // ─── 설정값 & 상태 ─────────────────────────────────────────────
+    let channel   = null;
+    let connected = false;
+    let sentCount = 0;
+
+    const inputEl     = document.getElementById('msg-input');
+    const sendBtn     = document.getElementById('send-btn');
+    const charCount   = document.getElementById('char-count');
+    const statusDot   = document.getElementById('status-dot');
+    const statusText  = document.getElementById('status-text');
+    const chipCont    = document.getElementById('chip-container');
+    const sentCountEl = document.getElementById('sent-count');
+    const toast       = document.getElementById('toast');
+
+    // ─── 연결 상태 표시 ────────────────────────────────────────────
+    function setStatus(state, text) {
+      statusDot.className = 'status-dot ' + state; // online | offline | loading
+      statusText.textContent = text;
+      if (state === 'online') {
+        sendBtn.disabled = inputEl.value.trim().length === 0;
+      } else {
+        sendBtn.disabled = true;
+      }
+    }
+
+    // ─── 토스트 알림 ───────────────────────────────────────────────
+    function showToast() {
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    // ─── 입력 이벤트 ───────────────────────────────────────────────
+    inputEl.addEventListener('input', () => {
+      const len = inputEl.value.length;
+      charCount.textContent = `${len} / 80`;
+      sendBtn.disabled = !connected || len === 0;
+    });
+
+    // ─── 메시지 전송 ───────────────────────────────────────────────
+    async function sendMessage(text) {
+      if (!channel || !connected || !text.trim()) return;
+      try {
+        await channel.send({
+          type:    'broadcast',
+          event:   'crowd_message',
+          payload: { text: text.trim() },
+        });
+        sentCount++;
+        sentCountEl.textContent = `이번 세션 ${sentCount}회 전송`;
+
+        // 초기화 + 애니메이션
+        inputEl.value  = '';
+        charCount.textContent = '0 / 80';
+        sendBtn.disabled = true;
+        sendBtn.classList.add('sent-pop');
+        setTimeout(() => sendBtn.classList.remove('sent-pop'), 400);
+        showToast();
+      } catch (err) {
+        console.error('[D-Garden audience] 전송 실패:', err);
+        setStatus('offline', '전송 오류');
+      }
+    }
+
+    sendBtn.addEventListener('click', () => sendMessage(inputEl.value));
+
+    // Enter 전송 (Shift+Enter = 줄바꿈)
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage(inputEl.value);
+      }
+    });
+
+    // ─── 키워드 칩 클릭 → 입력창에 추가 후 즉시 전송 ──────────────
+    function addChip(word) {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.textContent = word;
+      chip.addEventListener('click', () => {
+        inputEl.value = word;
+        charCount.textContent = `${word.length} / 80`;
+        sendMessage(word);
+      });
+      chipCont.appendChild(chip);
+    }
+
+    // ─── Supabase 초기화 ───────────────────────────────────────────
+    async function bootstrap() {
+      let spec;
+      try {
+        const res = await fetch('./spec.json');
+        spec = await res.json();
+      } catch (e) {
+        setStatus('offline', '설정 로드 실패');
+        return;
+      }
+
+      // 키워드 칩 동적 생성 (POSITIVE_KEYWORDS에서)
+      const keywords = spec.POSITIVE_KEYWORDS || ['화이팅', '최고야', '대박', '파이팅', '킹받', '레전드'];
+      keywords.slice(0, 6).forEach(addChip);
+
+      const url  = spec.SUPABASE_URL;
+      const key  = spec.SUPABASE_ANON_KEY;
+      const name = spec.REALTIME_CHANNEL || 'd-garden-crowd';
+
+      if (!url || url.startsWith('YOUR_')) {
+        setStatus('offline', '미설정 (spec.json 확인)');
+        console.warn('[D-Garden] spec.json에 SUPABASE_URL을 입력하세요.');
+        return;
+      }
+
+      try {
+        setStatus('loading', '연결 중...');
+        const client = window.supabase.createClient(url, key);
+        channel = client.channel(name);
+
+        channel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            connected = true;
+            setStatus('online', 'LIVE ●');
+            // 연결 되면 입력창 포커스
+            inputEl.focus();
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            connected = false;
+            setStatus('offline', '연결 끊김');
+          }
+        });
+      } catch (err) {
+        setStatus('offline', '연결 실패');
+        console.error('[D-Garden audience] Supabase 오류:', err);
+      }
+    }
+
+    bootstrap();
+  </script>
+
+</body>
+</html>

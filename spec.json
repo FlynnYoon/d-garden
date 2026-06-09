@@ -1,0 +1,105 @@
+{
+  "SUPABASE_URL":       "YOUR_SUPABASE_URL",
+  "SUPABASE_ANON_KEY":  "YOUR_SUPABASE_ANON_KEY",
+  "REALTIME_CHANNEL":   "d-garden-crowd",
+  "INITIAL_SCORE": 50,
+  "BASE_LEAF_SIZE": 10,
+  "MIN_SCORE": 0,
+  "MAX_SCORE": 100,
+  "IDLE_DECREASE_PER_SEC": -0.5,
+  "MOUSE_MOVE_INCREASE": 0.5,
+  "MOUSE_MOVE_CAP": 55,
+  "SHORT_INPUT_INCREASE": 1.0,
+  "SHORT_INPUT_CAP": 60,
+  "BURST_INPUT_INCREASE": 1.0,
+  "CROWD_POSITIVE_SCORE": 2.0,
+  "CROWD_NEGATIVE_SCORE": -2.0,
+  "CROWD_LIMIT_PER_SEC": 5.0,
+  "CPM_FOCUS_THRESHOLD": 300,
+  "CPM_OVERHEAT_THRESHOLD": 400,
+  "BACKSPACE_RATIO_THRESHOLD": 0.20,
+  "POSITIVE_KEYWORDS": ["화이팅", "이겨라", "최고야", "잘한다", "대박", "멋있어", "짱이다", "파이팅", "완벽해", "응원해", "굳", "킹받", "레전드", "갓"],
+  "NEGATIVE_KEYWORDS": ["별로", "지루해", "못해", "실망", "노잼", "에이", "졌다", "힘들겠다", "그게뭐야", "별로다", "망했다"],
+  "STATES": {
+    "DORMANT":  { "min": 0,  "max": 20,  "color": "Gray" },
+    "OPTIMAL":  { "min": 21, "max": 60,  "color": "Emerald" },
+    "OVERHEAT": { "min": 61, "max": 90,  "color": "Purple" },
+    "COOLDOWN": { "min": 91, "max": 100, "color": "DarkNavy" }
+  },
+  "PALETTE": {
+    "DORMANT": {
+      "colorStops": [
+        { "t": 0.0,  "color": "#0f0f1e" },
+        { "t": 0.50, "color": "#2e2e4a" },
+        { "t": 1.0,  "color": "#9090bb" }
+      ],
+      "tipColorA":   "#aaaacc",
+      "tipColorB":   "#c8c8e0",
+      "orbColor":    "#b8b8d8",
+      "orbAltColor": "#e0e0f5",
+      "orbSpecial":  "#ffffff",
+      "glowColor":   "rgba(110,110,175,0.55)",
+      "glowBlur":    24,
+      "spread":      0.50,
+      "bgCenter":    "#0b0b16",
+      "bgEdge":      "#040408"
+    },
+    "OPTIMAL": {
+      "colorStops": [
+        { "t": 0.0,  "color": "#002318" },
+        { "t": 0.28, "color": "#007744" },
+        { "t": 0.58, "color": "#00ffaa" },
+        { "t": 0.80, "color": "#00ddff" },
+        { "t": 1.0,  "color": "#aaffff" }
+      ],
+      "tipColorA":   "#00ffcc",
+      "tipColorB":   "#88ffee",
+      "orbColor":    "#00ffcc",
+      "orbAltColor": "#88ffee",
+      "orbSpecial":  "#ffffff",
+      "glowColor":   "rgba(0,245,175,0.70)",
+      "glowBlur":    52,
+      "spread":      0.42,
+      "bgCenter":    "#021008",
+      "bgEdge":      "#010502"
+    },
+    "OVERHEAT": {
+      "colorStops": [
+        { "t": 0.0,  "color": "#4a0018" },
+        { "t": 0.25, "color": "#bb0044" },
+        { "t": 0.52, "color": "#ff0099" },
+        { "t": 0.78, "color": "#aa00ff" },
+        { "t": 1.0,  "color": "#0066ff" }
+      ],
+      "tipColorA":   "#ff44cc",
+      "tipColorB":   "#4488ff",
+      "orbColor":    "#ff44cc",
+      "orbAltColor": "#4488ff",
+      "orbSpecial":  "#ffffff",
+      "glowColor":   "rgba(220,0,200,0.80)",
+      "glowBlur":    68,
+      "spread":      0.62,
+      "bgCenter":    "#130010",
+      "bgEdge":      "#070007"
+    },
+    "COOLDOWN": {
+      "colorStops": [
+        { "t": 0.0,  "color": "#0d0820" },
+        { "t": 0.28, "color": "#2d1060" },
+        { "t": 0.55, "color": "#6b35b8" },
+        { "t": 0.80, "color": "#b088e8" },
+        { "t": 1.0,  "color": "#d4b8ff" }
+      ],
+      "tipColorA":   "#c8a8ff",
+      "tipColorB":   "#e8d4ff",
+      "orbColor":    "#c8a8ff",
+      "orbAltColor": "#dfc6ff",
+      "orbSpecial":  "#f5eeff",
+      "glowColor":   "rgba(160,90,230,0.55)",
+      "glowBlur":    38,
+      "spread":      0.32,
+      "bgCenter":    "#08041a",
+      "bgEdge":      "#030210"
+    }
+  }
+}
