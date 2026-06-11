@@ -484,6 +484,65 @@ const Renderer = (() => {
     });
   }
 
+  // ─── 영혼의 나무 덩굴 (글로잉나무 전용) ─────────────────────────
+  // 위쪽 가지 끝에서 수양버들처럼 늘어지는 발광 가닥 + 흘러내리는 빛 펄스
+
+  // 2차 베지어 곡선 위의 t 지점 좌표 (펄스 위치 계산용)
+  function quadAt(a, c, b, t) {
+    const u = 1 - t;
+    return u * u * a + 2 * u * t * c + t * t * b;
+  }
+
+  function drawSoulTendrils(time, ep) {
+    const fx   = window.SPEC.FX || {};
+    const maxN = fx.TENDRIL_COUNT || 22;
+    // 충분히 자란, 화면 위쪽 절반의 가지 끝에서만 늘어짐
+    const cand = treeTips.filter(t => t.gf > 0.6 && t.y < canvas.height * 0.55);
+    if (!cand.length) return;
+    const n    = Math.min(maxN, cand.length);
+    const step = cand.length / n;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const tip = cand[Math.floor(i * step)];
+      const sr1 = seededRandom(tip.id * 91 + 7);
+      const len = canvas.height * (0.09 + sr1 * 0.13) * tip.gf;
+      // 바람에 맞춰 아래끝이 천천히 흔들림
+      const sway = Math.sin(time * 0.0006 + tip.x * 0.01 + sr1 * 6) * len * 0.16;
+      const ex  = tip.x + sway,        ey  = tip.y + len;
+      const cpx = tip.x + sway * 0.35, cpy = tip.y + len * 0.55;
+
+      // 덩굴 가닥: 위는 흐리고 아래끝으로 갈수록 밝아짐 (영혼의 나무 특유의 빛)
+      const g = ctx.createLinearGradient(tip.x, tip.y, ex, ey);
+      g.addColorStop(0, hexToRgba(ep.tipColorB, 0.08));
+      g.addColorStop(1, hexToRgba(ep.orbSpecial, 0.50));
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = g;
+      ctx.lineWidth   = 1.1;
+      ctx.shadowBlur  = 8; ctx.shadowColor = ep.glowColor;
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.quadraticCurveTo(cpx, cpy, ex, ey);
+      ctx.stroke();
+
+      // 가닥을 타고 흘러내리는 빛 펄스 (가닥마다 위상이 다름)
+      const pt = (time * 0.00045 + sr1 * 7) % 1;
+      const px = quadAt(tip.x, cpx, ex, pt);
+      const py = quadAt(tip.y, cpy, ey, pt);
+      ctx.globalAlpha = 0.85 * Math.sin(pt * Math.PI);
+      ctx.fillStyle   = ep.orbSpecial;
+      ctx.shadowBlur  = 12;
+      ctx.beginPath(); ctx.arc(px, py, 1.8, 0, Math.PI * 2); ctx.fill();
+
+      // 끝 방울: 가닥 끝에 맺힌 발광점
+      ctx.globalAlpha = 0.70;
+      ctx.beginPath(); ctx.arc(ex, ey, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // ─── 낙엽 파티클 (글로잉나무 전용) ──────────────────────────────
   // 성장 완료된 가지 끝에서 잎이 떨어져 나선형으로 낙하
   let fallingLeaves = [];
@@ -701,6 +760,7 @@ const Renderer = (() => {
 
         drawBranch(cx, cy, -Math.PI / 2, trunkLen, maxDepth, maxDepth, ep, time, 1);
         drawAllLeaves(time, ep);
+        drawSoulTendrils(time, ep);   // 영혼의 나무 덩굴 커튼
         break;
       }
     }
@@ -840,11 +900,39 @@ const Renderer = (() => {
     }
 
     drawLotusStamen(cx, lotusCY, time, ep, gp);
+    drawLotusMotes(cx, lotusCY, time, ep);
 
     if (gp > 0.75 && Math.random() < 0.10) {
       const pollenEp = { ...ep, orbColor: '#ffdd44', orbAltColor: '#ffee88', orbSpecial: '#ffff99' };
       spawnParticles(2, 'focus', pollenEp);
     }
+  }
+
+  /**
+   * 연꽃 둘레를 떠도는 빛 무리: 타원 궤도를 느리게 도는 발광 입자 (stateless)
+   * 점수가 높을수록 궤도가 넓어지고 입자가 또렷해짐
+   */
+  function drawLotusMotes(cx, lotusCY, time, ep) {
+    const fx  = window.SPEC.FX || {};
+    const n   = fx.LOTUS_MOTE_COUNT || 12;
+    const sr2 = renderState.displayScore / 100;
+    if (sr2 < 0.15) return;
+    const orbitR = 90 + sr2 * 240;
+
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const sp  = 0.00035 + seededRandom(i * 13 + 5) * 0.00045;
+      const ang = time * sp + i * (Math.PI * 2 / n);
+      const rr  = orbitR * (0.55 + seededRandom(i * 7 + 1) * 0.45);
+      const x   = cx + Math.cos(ang) * rr;
+      const y   = lotusCY + Math.sin(ang) * rr * 0.38 + Math.sin(time * 0.0012 + i * 1.9) * 9;
+      const tw  = 0.5 + 0.5 * Math.sin(time * 0.0025 + i * 2.1);
+      ctx.globalAlpha = (0.30 + tw * 0.45) * sr2;
+      ctx.fillStyle   = i % 3 === 0 ? ep.orbSpecial : ep.orbAltColor;
+      ctx.shadowBlur  = 10; ctx.shadowColor = ep.glowColor;
+      ctx.beginPath(); ctx.arc(x, y, 1.2 + tw * 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1041,7 +1129,8 @@ const Renderer = (() => {
             ctx.stroke();
 
             // 나선형 컬: 덩굴손 끝에서 꼬이는 작은 원호
-            const curlR   = tLen * 0.12;
+            // 생물발광 펄스가 지나갈 때 컬이 살짝 부풀어 오름 (빛에 반응하는 생명감)
+            const curlR   = tLen * 0.12 * (1 + Math.max(0, pulseTrav - 0.7) * 0.9);
             const curlAng = time * 0.0015 * side + phase;
             ctx.beginPath();
             ctx.arc(tx, ty, curlR, curlAng, curlAng + Math.PI * 1.5, side < 0);
@@ -1056,9 +1145,36 @@ const Renderer = (() => {
         }
       }
 
-      // 줄기 최상단 → treeTips
+      // ── 고사리 새순: 줄기 꼭대기에 말려 있다가 자라면서 풀리는 나선 ──
       const tip = pts[pts.length - 1];
-      if (tip) treeTips.push({ x: tip.x, y: tip.y, angle: -Math.PI / 2, gf: gp, id: (s + 1) * 1000, li: 0 });
+      if (tip) {
+        const dir   = s % 2 === 0 ? 1 : -1;
+        const turns = 1.6 + (1 - gp) * 1.2;        // 어릴수록 더 단단히 감김
+        const spR   = (7 + s * 2.5) * (0.5 + gp);
+        ctx.save();
+        ctx.beginPath();
+        for (let k = 0; k <= 24; k++) {
+          const tt  = k / 24;
+          const ang = tt * Math.PI * 2 * turns * dir;
+          const rr  = spR * tt * 0.9;
+          const sx2 = tip.x + Math.sin(ang) * rr;
+          const sy2 = (tip.y - spR * 0.8) - Math.cos(ang) * rr;
+          if (k === 0) ctx.moveTo(sx2, sy2); else ctx.lineTo(sx2, sy2);
+        }
+        ctx.strokeStyle = hexToRgba(ep.orbSpecial, 0.20 + 0.55 * gp);
+        ctx.lineWidth   = 1.1;
+        ctx.shadowBlur  = 10; ctx.shadowColor = ep.glowColor;
+        ctx.globalAlpha = 0.85;
+        ctx.stroke();
+        // 나선 중심 발광점
+        ctx.beginPath(); ctx.arc(tip.x, tip.y - spR * 0.8, 1.6, 0, Math.PI * 2);
+        ctx.fillStyle  = ep.orbSpecial;
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.restore();
+
+        treeTips.push({ x: tip.x, y: tip.y, angle: -Math.PI / 2, gf: gp, id: (s + 1) * 1000, li: 0 });
+      }
     }
   }
 
@@ -1980,6 +2096,28 @@ const Renderer = (() => {
       ctx.beginPath();
       ctx.arc(s.x, s.y, displaySize, 0, Math.PI * 2);
       ctx.fill();
+
+      // ── 우드스프라이트 섬모: 코어 아래로 늘어지는 가는 발광 가닥 (해파리형) ──
+      // 에너자이즈(폭발) 상태는 제외 — 떠다니는 주변 씨앗만 신비롭게
+      if (!s.energized) {
+        const cilN = 4;
+        ctx.lineWidth   = 0.6;
+        ctx.strokeStyle = s.color;
+        ctx.shadowBlur  = 4;
+        for (let c = 0; c < cilN; c++) {
+          const spreadC = (c - (cilN - 1) / 2) * 0.55;            // 좌우 부챗살
+          const wob     = Math.sin(time * 0.003 + s.phase + c * 1.7) * 2.5;
+          const cilLen  = displaySize * 2.2 + 5;
+          ctx.globalAlpha = displayAlpha * 0.50;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y + displaySize * 0.5);
+          ctx.quadraticCurveTo(
+            s.x + spreadC * cilLen * 0.5 + wob,        s.y + cilLen * 0.55,
+            s.x + spreadC * cilLen      + wob * 1.6,   s.y + cilLen
+          );
+          ctx.stroke();
+        }
+      }
 
       // 에너자이즈 상태: 외부 반짝임 링 추가 (에너지 방출 효과)
       if (s.energized && energyScale > 1.8) {
