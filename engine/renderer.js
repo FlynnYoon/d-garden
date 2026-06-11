@@ -1619,7 +1619,7 @@ const Renderer = (() => {
       const sx = Math.abs(Math.sin(i * 127.1)) * canvas.width;
       const sy = Math.abs(Math.sin(i * 311.7)) * canvas.height;
       const tw = 0.3 + Math.abs(Math.sin(time * 0.0018 + i * 0.7)) * 0.7;
-      ctx.globalAlpha = tw * 0.10;
+      ctx.globalAlpha = tw * ((window.SPEC.FX || {}).STAR_ALPHA_LARGE || 0.20);
       ctx.beginPath(); ctx.arc(sx, sy, 1.6, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -1719,7 +1719,7 @@ const Renderer = (() => {
       const spread = canvas.width * (0.045 + seededRandom(i * 13 + 4) * 0.05);
       const botX   = topX + off * canvas.width * 0.055;
       const pulse  = 0.6 + 0.4 * Math.sin(time * 0.0006 + i * 2.2);
-      const a      = 0.085 * sr * pulse;
+      const a      = (fx.GODRAY_ALPHA || 0.13) * sr * pulse;
 
       const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
       g.addColorStop(0,    ep.glowColor.replace(/[\d.]+\)$/, `${a})`));
@@ -1746,7 +1746,7 @@ const Renderer = (() => {
     starLayer.height = canvas.height;
     const sctx = starLayer.getContext('2d');
     sctx.fillStyle   = '#ffffff';
-    sctx.globalAlpha = 0.055; // 트윙클 평균 밝기로 고정
+    sctx.globalAlpha = (window.SPEC.FX || {}).STAR_ALPHA_SMALL || 0.10; // 트윙클 평균 밝기로 고정
     for (let i = 0; i < 260; i++) {
       if (i % 7 === 0) continue; // 큰 별은 메인 루프에서 트윙클 렌더
       const sx = Math.abs(Math.sin(i * 127.1)) * starLayer.width;
@@ -1825,13 +1825,15 @@ const Renderer = (() => {
     ctx.fillStyle = lineG; ctx.fillRect(0, lineY - 55, canvas.width, 110);
   }
 
-  // 비네트: 외곽을 더 깊게 압도
+  // 비네트: 외곽을 은은하게만 — 과하면 화사함과 글래스 패널을 죽임
   function drawVignette() {
+    const fx = window.SPEC.FX || {};
+    const va = fx.VIGNETTE_ALPHA !== undefined ? fx.VIGNETTE_ALPHA : 0.55;
     const g = ctx.createRadialGradient(
       canvas.width/2, canvas.height/2, canvas.height * 0.18,
       canvas.width/2, canvas.height/2, canvas.height * 0.95
     );
-    g.addColorStop(0, 'transparent'); g.addColorStop(1, 'rgba(0,0,0,0.82)');
+    g.addColorStop(0, 'transparent'); g.addColorStop(1, `rgba(0,0,0,${va})`);
     ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
@@ -2087,9 +2089,9 @@ const Renderer = (() => {
     else if (currentState === 'DORMANT' && Math.random() < 0.10)   spawnParticles(2, 'focus', ep);
 
     // 잎 끝에서 꽃가루처럼 흩날리는 추가 파티클 (OPTIMAL·OVERHEAT)
+    // spawnSeed(energized, ep) 시그니처 — 주변(ambient) 씨앗으로 생성, 위치는 내부에서 잎 끝 선택
     if ((currentState === 'OPTIMAL' || currentState === 'OVERHEAT') && Math.random() < 0.30) {
-      const src = grown[Math.floor(Math.random() * grown.length)];
-      spawnSeed(src.x, src.y, ep);
+      spawnSeed(false, ep);
     }
   }
 

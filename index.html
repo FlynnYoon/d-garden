@@ -19,16 +19,27 @@
       font-family: 'Inter', sans-serif;
     }
 
-    /* 글래스모피즘 패널 공통 스타일 */
+    /* 글래스모피즘 패널 공통 스타일 (audience.html과 동일 토큰) */
     .glass {
-      background: rgba(255, 255, 255, 0.04);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(24px) saturate(160%);
+      -webkit-backdrop-filter: blur(24px) saturate(160%);
+      border: 1px solid rgba(255, 255, 255, 0.09);
       border-radius: 20px;
       box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        0 8px 36px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    }
+
+    /* 배경 빛 번짐 오브: 글래스 패널 뒤에 빛을 깔아 유리 질감을 살림 */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(90px);
+      background: var(--state-color);
+      opacity: 0.08;
+      pointer-events: none;
+      transition: background 0.8s ease;
     }
 
     /* 현재 상태 색상 테마 (JS에서 CSS 변수 업데이트) */
@@ -119,7 +130,7 @@
       text-transform: uppercase;
     }
     .typing-state.NORMAL   { color: rgba(255,255,255,0.4); }
-    .typing-state.FOCUS    { color: #00ff99; text-shadow: 0 0 10px rgba(0,255,140,0.8); }
+    .typing-state.FOCUS    { color: var(--state-color); text-shadow: 0 0 10px var(--state-glow); }
     .typing-state.RAGE     { color: #ff4444; text-shadow: 0 0 10px rgba(255,60,60,0.8); }
 
     /* 타이틀 로고 */
@@ -181,6 +192,10 @@
 
   <!-- 화면 가장자리 상태 글로우 -->
   <div class="edge-glow" id="edge-glow"></div>
+
+  <!-- 배경 빛 오브: 글래스 패널(우측 점수판·좌하단 CPM) 뒤를 밝힘 -->
+  <div class="bg-orb" style="width:340px;height:340px;top:32%;right:-90px;"></div>
+  <div class="bg-orb" style="width:300px;height:300px;bottom:-80px;left:-70px;"></div>
 
   <!-- UI 오버레이 -->
   <div class="absolute inset-0 pointer-events-none" id="ui-overlay">
@@ -258,8 +273,8 @@
     <div id="focus-alert"
       class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none"
       style="opacity:0; transition: opacity 0.4s ease;">
-      <p style="font-family:'Space Mono',monospace; font-size:1.1rem; font-weight:700; color:#00ff99;
-                text-shadow: 0 0 30px rgba(0,255,140,0.9); letter-spacing:0.2em;">⚡ DEEP FOCUS</p>
+      <p style="font-family:'Space Mono',monospace; font-size:1.1rem; font-weight:700; color:var(--state-color);
+                text-shadow: 0 0 30px var(--state-glow); letter-spacing:0.2em;">⚡ DEEP FOCUS</p>
     </div>
 
   </div>
@@ -299,13 +314,17 @@
   </script>
 
   <script>
-    // 상태별 CSS 변수 (색상 + 글로우)
-    const STATE_CSS = {
-      DORMANT:  { color: '#888899', glow: 'rgba(136,136,153,0.35)' },
-      OPTIMAL:  { color: '#00ff99', glow: 'rgba(0,255,140,0.40)'  },
-      OVERHEAT: { color: '#ee55ff', glow: 'rgba(200,60,255,0.50)' },
-      COOLDOWN: { color: '#c8a8ff', glow: 'rgba(160,90,230,0.45)' },
-    };
+    // 상태별 UI 색상: spec.json의 테마별 팔레트에서 가져옴 (SDD)
+    // → 나무 색이 바뀌면 점수판·배지·글로우도 같은 색으로 물듦
+    let currentThemeName = 'GLOWING_TREE';
+
+    function getStateCss(state) {
+      const spec     = window.SPEC || {};
+      const themePal = spec.THEMES && spec.THEMES[currentThemeName];
+      const pal      = (themePal && themePal[state]) || (spec.PALETTE && spec.PALETTE[state]);
+      if (!pal) return { color: '#00ff99', glow: 'rgba(0,255,140,0.40)' };
+      return { color: pal.orbColor, glow: pal.glowColor };
+    }
 
     const STATE_LABELS = {
       DORMANT:  '💤 DORMANT',
@@ -324,7 +343,7 @@
     let prevTyping = 'NORMAL';
 
     function applyStateCss(state) {
-      const css = STATE_CSS[state] || STATE_CSS.OPTIMAL;
+      const css = getStateCss(state);
       document.documentElement.style.setProperty('--state-color', css.color);
       document.documentElement.style.setProperty('--state-glow',  css.glow);
     }
@@ -388,9 +407,10 @@
         requestAnimationFrame(uiLoop);
       }
 
-      // 저장된 테마로 버튼 active 초기화
+      // 저장된 테마로 버튼 active + UI 색상 초기화
       try {
         const saved = localStorage.getItem('d-garden-theme') || 'GLOWING_TREE';
+        currentThemeName = saved;
         updateThemeButtons(saved);
       } catch (_) {}
 
@@ -405,6 +425,8 @@
     function selectTheme(name) {
       if (typeof Renderer === 'undefined') return;
       Renderer.setTheme(name);
+      currentThemeName = name;
+      applyStateCss(prevState);   // UI 색상도 새 테마 팔레트로 즉시 갱신
       updateThemeButtons(name);
     }
 

@@ -1,6 +1,6 @@
 # D-Garden 마일스톤 진행 현황
 
-> 최종 갱신: 2026-06-10
+> 최종 갱신: 2026-06-11
 
 ---
 
@@ -56,7 +56,7 @@
 |------|------|------|
 | Vercel 배포 설정 (`vercel.json`) | ✅ | 설정 파일 완성 |
 | GitHub 레포 + 첫 커밋 | ✅ | `474ebfc` — D-Garden v1.0 |
-| 미배포 변경사항 스테이징 | ❌ **커밋·배포 필요** | 테마·비주얼 대규모 업데이트 미커밋 |
+| 미배포 변경사항 스테이징 | ✅ 커밋 완료 | `50ebde5`(테마+에이전트), `f896549`(잎 수정) — 배포만 대기 |
 | Supabase 키 입력 후 재배포 | ❌ 대기 중 | M3 키 입력 선행 필요 |
 | QR 코드 생성 기능 | ❌ 미구현 | 발표 슬라이드용 audience URL QR 생성 |
 | `spec.json` 수치 라이브 조정 | 🔶 선택 | 현장 반응에 따라 조정 |
@@ -78,7 +78,24 @@
 | `spec.json` EDITOR_BRIDGE_URL | ✅ | `http://127.0.0.1:7331/events` (DGARDEN_PORT로 변경 가능) |
 | 전역 후킹 E2E 검증 | ✅ | 합성 키 20타·백스페이스 3 → SSE 프레임 정확 수신 확인 |
 | Cursor 확장(1차안) 제거 | ✅ | `agent/`로 역할 대체되어 uninstall |
-| Cursor 재시작 → 포트 7331 해제 + 에이전트 실행 | ❌ **수동 필요** | 재시작 후 `agent/start.cmd` 실행 → 페이지에 `● EDITOR LINKED` |
+| Cursor 재시작 → 포트 7331 해제 + 에이전트 실행 | ✅ 완료 (2026-06-11) | 에이전트 실행, 페이지 `● EDITOR LINKED` 확인 |
+
+---
+
+## M6 — 그래픽 품질 리뷰 반영 ✅ 완료 (2026-06-11)
+> 프로젝트 결론 = "화사함 + glassmorphism". 전체 그래픽 리뷰 후 일괄 반영.
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| 🔴 꽃가루 파티클 버그 | ✅ 수정 | `spawnSeed` 인자 순서 오류 — 색 깨진 대형 씨앗이 개수 제한 무시하고 생성되던 문제 |
+| 비네트 완화 (0.82→0.55) | ✅ | `FX.VIGNETTE_ALPHA` — 가장자리가 너무 어두워 화사함·글래스 패널을 죽이던 문제 |
+| 별 밝기 상향 | ✅ | `FX.STAR_ALPHA_SMALL` 0.055→0.10, `FX.STAR_ALPHA_LARGE` 0.10→0.20 |
+| 갓레이 밝기 상향 (0.085→0.13) | ✅ | `FX.GODRAY_ALPHA` — 점수 보상으로서의 빛줄기 체감 강화 |
+| 글래스 saturate(160%) 추가 | ✅ | blur만 있던 유리에 채도 증폭 — 정석 글래스모피즘 |
+| 글래스 토큰 통일 | ✅ | index ↔ audience 동일 스타일 (blur 24px, radius 20px, bg 5%, border 9%) |
+| 메인 페이지 배경 빛 오브 | ✅ | 글래스 패널 뒤 `bg-orb` 2개 — 상태 색상 따라 변함 |
+| UI 색상 테마 연동 | ✅ | 하드코딩 `STATE_CSS` 제거 → spec.json 테마 팔레트에서 가져옴 (SDD). 분홍 연꽃이면 점수판도 분홍 |
+| DEEP FOCUS 알림 색 연동 | ✅ | 고정 초록 → `--state-color` 변수 |
 
 ---
 
@@ -103,7 +120,7 @@
 ```
 [ ] supabase.com 프로젝트 생성 → URL + ANON KEY 복사
 [ ] spec.json 의 SUPABASE_URL / SUPABASE_ANON_KEY 교체
-[ ] git add . && git commit -m "feat: themes + visual overhaul"
+[x] git commit (50ebde5, f896549 + 그래픽 리뷰 반영 커밋)
 [ ] vercel deploy (또는 git push → auto deploy)
 [ ] 배포된 URL /audience 로 QR 생성 (qr.io 등 무료 사이트)
 [ ] 실제 폰으로 audience 페이지 접속 → 메시지 전송 → 발표 화면 반응 확인
