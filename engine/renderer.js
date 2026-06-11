@@ -390,18 +390,20 @@ const Renderer = (() => {
     const cooldownShrink = 1 - cooldownW * 0.55;
     const droop          = cooldownW * 0.38;
 
-    // 성능 안전망: treeTips 상한 — slice(0,N)은 재귀 순서상 왼쪽 가지만 남아
-    // 잎이 한쪽에 몰리므로, 전체 배열에서 균등 간격으로 샘플링한다
+    // 잎 위치 선별: 안쪽 분기점에 잎 여러 장이 한 점에서 피면 연꽃처럼 보임
+    // → 말단 가지(바깥쪽 두 단계)에만 잎을 허용하고, 좌우 균등 샘플링
+    //   (slice(0,N)은 재귀 순서상 왼쪽 가지만 남아 한쪽에 몰림)
     const maxTips = window.SPEC.LEAF_MAX_TIPS || 60;
-    let tips = treeTips;
-    if (treeTips.length > maxTips) {
-      const step = treeTips.length / maxTips;
+    const maxLi   = treeTips.reduce((m, t) => Math.max(m, t.li || 0), 0);
+    let pool = treeTips.filter(t => t.gf >= 0.25 && (t.li || 0) >= maxLi - 1);
+    if (pool.length < 12) pool = treeTips.filter(t => t.gf >= 0.25); // 어린 나무: 전체 허용
+    let tips = pool;
+    if (pool.length > maxTips) {
+      const step = pool.length / maxTips;
       tips = [];
-      for (let i = 0; i < maxTips; i++) tips.push(treeTips[Math.floor(i * step)]);
+      for (let i = 0; i < maxTips; i++) tips.push(pool[Math.floor(i * step)]);
     }
     tips.forEach((tip) => {
-      // ── 게이트: 가지 25% 이상 자라면 잎 출현 허용 (score ~40 목표) ──
-      if (tip.gf < 0.25) return;
 
       // 사실상 모든 가지 끝에 잎 (98%)
       if (seededRandom(tip.id * 31 + 3) > 0.98) return;
@@ -423,11 +425,12 @@ const Renderer = (() => {
       if (leafProgress < 0.01) return;
 
       const currentLeafSize = maxLeafSize * cooldownShrink;
-      const leafDir         = leafSeed * 1.25;
+      // 부채꼴 각도 축소(±71°→±51°): 한 점에서 방사형으로 퍼지면 꽃잎처럼 보임
+      const leafDir         = leafSeed * 0.9;
 
       drawLeaf(tip.x, tip.y, tip.angle, currentLeafSize, ep, time, leafProgress, leafDir, droop);
 
-      // ── 2번째 잎: 50% 확률 (성능 최적화: 92% → 50%) ──
+      // ── 2번째 잎: 50% 확률 — 같은 점이 아니라 가지를 따라 뒤로 물려 배치 ──
       if (seededRandom(tip.id * 47 + 7) > 0.50) {
         const subSeed     = Math.sin(tip.x * 8.7 + tip.y * 33.2 + 1.5);
         const absSubS     = Math.abs(subSeed);
@@ -436,12 +439,15 @@ const Renderer = (() => {
         const subAge      = Math.max(0, leafAge - 0.15);
         const subProgress = Math.min(1.0, subAge * subSpeed);
         if (subProgress > 0.01) {
-          const subDir = subSeed * 1.25 + Math.PI * 0.25;
-          drawLeaf(tip.x, tip.y, tip.angle, subMaxSize * cooldownShrink, ep, time, subProgress, subDir, droop);
+          const gap2 = maxLeafSize * 0.30;
+          const bx2  = tip.x - Math.cos(tip.angle) * gap2;
+          const by2  = tip.y - Math.sin(tip.angle) * gap2;
+          const subDir = subSeed * 0.9 + Math.PI * 0.16;
+          drawLeaf(bx2, by2, tip.angle, subMaxSize * cooldownShrink, ep, time, subProgress, subDir, droop);
         }
       }
 
-      // ── 3번째 잎: 35% 확률 (성능 최적화: 80% → 35%) ──
+      // ── 3번째 잎: 35% 확률 — 가지를 따라 더 뒤쪽에 배치 ──
       if (seededRandom(tip.id * 61 + 11) > 0.65) {
         const triSeed     = Math.sin(tip.x * 5.5 + tip.y * 22.1 + 3.0);
         const absTriS     = Math.abs(triSeed);
@@ -450,8 +456,11 @@ const Renderer = (() => {
         const triAge      = Math.max(0, leafAge - 0.28);
         const triProgress = Math.min(1.0, triAge * triSpeed);
         if (triProgress > 0.01) {
-          const triDir = triSeed * 1.25 - Math.PI * 0.18;
-          drawLeaf(tip.x, tip.y, tip.angle, triMaxSize * cooldownShrink, ep, time, triProgress, triDir, droop);
+          const gap3 = maxLeafSize * 0.55;
+          const bx3  = tip.x - Math.cos(tip.angle) * gap3;
+          const by3  = tip.y - Math.sin(tip.angle) * gap3;
+          const triDir = triSeed * 0.9 - Math.PI * 0.12;
+          drawLeaf(bx3, by3, tip.angle, triMaxSize * cooldownShrink, ep, time, triProgress, triDir, droop);
         }
       }
 
@@ -597,7 +606,10 @@ const Renderer = (() => {
       ? (tipRand < 0.70 ? ep.tipColorA : tipRand < 0.90 ? ep.tipColorB : ep.orbSpecial)
       : getGradientColor(tEnd, ep.colorStops);
 
-    const lw = Math.max(0.3, Math.pow(depth / maxDepth, 1.6) * 12);
+    // OVERHEAT: 폭발적 에너지 표현 — 줄기(mass 큰 쪽)일수록 굵어지고 잔가지는 섬세하게 유지
+    const overheatW  = getStateWeight('OVERHEAT');
+    const widthBoost = 1 + overheatW * (window.SPEC.TRUNK_OVERHEAT_BOOST || 0.55) * mass;
+    const lw = Math.max(0.3, Math.pow(depth / maxDepth, 1.6) * 12 * widthBoost);
     const branchGrad = ctx.createLinearGradient(x1, y1, x2, y2);
     branchGrad.addColorStop(0,   colorStart);
     branchGrad.addColorStop(0.5, colorMid);
