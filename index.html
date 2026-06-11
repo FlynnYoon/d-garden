@@ -141,6 +141,37 @@
       opacity: 0.3;
       transition: box-shadow 1.2s ease, opacity 1.2s ease;
     }
+
+    /* 테마 선택 버튼 */
+    .theme-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.10em;
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.45);
+      cursor: pointer;
+      transition: all 0.35s ease;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      white-space: nowrap;
+      pointer-events: auto;
+    }
+    .theme-btn:hover {
+      border-color: rgba(255,255,255,0.30);
+      color: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.10);
+      box-shadow: 0 0 14px rgba(255,255,255,0.12);
+    }
+    .theme-btn.active {
+      border-color: var(--state-color);
+      color: var(--state-color);
+      background: rgba(255,255,255,0.08);
+      box-shadow: 0 0 18px var(--state-glow);
+    }
   </style>
 </head>
 <body>
@@ -154,17 +185,36 @@
   <!-- UI 오버레이 -->
   <div class="absolute inset-0 pointer-events-none" id="ui-overlay">
 
-    <!-- 타이틀 (좌측 상단) -->
-    <div class="absolute top-8 left-8">
-      <p class="logo-text">D · G A R D E N</p>
-      <p style="font-size:0.6rem; color:rgba(255,255,255,0.15); letter-spacing:0.08em; margin-top:2px;">
-        Ambient Mental Guardian
-      </p>
-      <!-- Supabase 실시간 연결 상태 -->
-      <p id="realtime-status"
-         style="font-size:0.55rem; font-family:'Space Mono',monospace; margin-top:6px; color:rgba(255,255,255,0.3); letter-spacing:0.06em;">
-        ● OFFLINE
-      </p>
+    <!-- 타이틀 + 테마 선택 (좌측 상단) -->
+    <div class="absolute top-8 left-8 flex flex-col gap-4" style="pointer-events:auto;">
+      <!-- 타이틀 -->
+      <div>
+        <p class="logo-text">D · G A R D E N</p>
+        <p style="font-size:0.6rem; color:rgba(255,255,255,0.15); letter-spacing:0.08em; margin-top:2px;">
+          Ambient Mental Guardian
+        </p>
+        <!-- Supabase 실시간 연결 상태 -->
+        <p id="realtime-status"
+           style="font-size:0.55rem; font-family:'Space Mono',monospace; margin-top:6px; color:rgba(255,255,255,0.3); letter-spacing:0.06em;">
+          ● OFFLINE
+        </p>
+        <!-- 에디터 브리지(Cursor 확장) 연결 상태 -->
+        <p id="editor-status"
+           style="font-size:0.55rem; font-family:'Space Mono',monospace; margin-top:2px; color:rgba(255,255,255,0.3); letter-spacing:0.06em;">
+          ● EDITOR OFFLINE
+        </p>
+      </div>
+
+      <!-- 테마 선택 버튼 -->
+      <div class="flex flex-col gap-2">
+        <p style="font-size:0.52rem; color:rgba(255,255,255,0.22); letter-spacing:0.12em; text-transform:uppercase;">Plant Theme</p>
+        <div class="flex flex-wrap gap-2" style="max-width:280px;">
+          <button class="theme-btn active" data-theme="GLOWING_TREE"        onclick="selectTheme('GLOWING_TREE')">🌳 글로잉나무</button>
+          <button class="theme-btn"        data-theme="NEON_LOTUS"           onclick="selectTheme('NEON_LOTUS')">🌸 네온연꽃</button>
+          <button class="theme-btn"        data-theme="DEEP_VINE"            onclick="selectTheme('DEEP_VINE')">🌿 심해덩굴</button>
+          <button class="theme-btn"        data-theme="HOLOGRAM_SUCCULENT"   onclick="selectTheme('HOLOGRAM_SUCCULENT')">💠 홀로그램다육이</button>
+        </div>
+      </div>
     </div>
 
     <!-- 우측 패널: 점수 + 상태 -->
@@ -231,6 +281,7 @@
       await loadScript('./engine/tracker.js');
       await loadScript('./engine/renderer.js');
       await loadScript('./engine/realtime.js');
+      await loadScript('./engine/editor-bridge.js');
       init();
     }
 
@@ -295,8 +346,13 @@
         RealtimeClient.init(window.SPEC);
       }
 
+      // 에디터 브리지 연결 (Cursor/VS Code 타이핑 수신)
+      if (typeof EditorBridge !== 'undefined') {
+        EditorBridge.init(window.SPEC);
+      }
+
       function uiLoop() {
-        const { score, state, cpm, typingState, hasCrowdEvent, hasFocusEnter } = Tracker.getState();
+        const { score, state, cpm, typingState, hasCrowdEvent } = Tracker.getState();
 
         // Renderer 업데이트 (score, state, cpm 전달)
         Renderer.update(score, state, cpm);
@@ -332,8 +388,30 @@
         requestAnimationFrame(uiLoop);
       }
 
+      // 저장된 테마로 버튼 active 초기화
+      try {
+        const saved = localStorage.getItem('d-garden-theme') || 'GLOWING_TREE';
+        updateThemeButtons(saved);
+      } catch (_) {}
+
       applyStateCss('OPTIMAL');
       requestAnimationFrame(uiLoop);
+    }
+
+    /**
+     * 테마 버튼 클릭 핸들러
+     * Renderer.setTheme() 호출 + 버튼 active 상태 갱신
+     */
+    function selectTheme(name) {
+      if (typeof Renderer === 'undefined') return;
+      Renderer.setTheme(name);
+      updateThemeButtons(name);
+    }
+
+    function updateThemeButtons(activeName) {
+      document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === activeName);
+      });
     }
   </script>
 

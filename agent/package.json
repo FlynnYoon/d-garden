@@ -1,0 +1,13 @@
+{
+  "name": "d-garden-agent",
+  "version": "0.0.1",
+  "description": "전역 키/마우스 입력 횟수를 D-Garden 페이지로 중계하는 로컬 백그라운드 에이전트",
+  "main": "index.js",
+  "license": "ISC",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "uiohook-napi": "^1.5.4"
+  }
+}

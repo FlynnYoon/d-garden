@@ -2,6 +2,7 @@
   "SUPABASE_URL":       "YOUR_SUPABASE_URL",
   "SUPABASE_ANON_KEY":  "YOUR_SUPABASE_ANON_KEY",
   "REALTIME_CHANNEL":   "d-garden-crowd",
+  "EDITOR_BRIDGE_URL":  "http://127.0.0.1:7331/events",
   "INITIAL_SCORE": 50,
   "BASE_LEAF_SIZE": 10,
   "MIN_SCORE": 0,
@@ -15,6 +16,15 @@
   "CROWD_POSITIVE_SCORE": 2.0,
   "CROWD_NEGATIVE_SCORE": -2.0,
   "CROWD_LIMIT_PER_SEC": 5.0,
+  "TYPO_DECAY_KEY_WINDOW": 120,
+  "FX": {
+    "REFLECTION_ALPHA": 0.45,
+    "FIREFLY_COUNT": 66,
+    "GODRAY_COUNT": 9,
+    "FALLING_LEAF_MAX": 8,
+    "LOTUS_DRIFT_PETALS": 6,
+    "VINE_BUBBLE_COUNT": 15
+  },
   "CPM_FOCUS_THRESHOLD": 300,
   "CPM_OVERHEAT_THRESHOLD": 400,
   "BACKSPACE_RATIO_THRESHOLD": 0.20,
@@ -100,6 +110,167 @@
       "spread":      0.32,
       "bgCenter":    "#08041a",
       "bgEdge":      "#030210"
+    }
+  },
+  "THEMES": {
+    "NEON_LOTUS": {
+      "label": "네온연꽃",
+      "DORMANT": {
+        "colorStops": [
+          { "t": 0.0, "color": "#1a0012" },
+          { "t": 0.5, "color": "#3d1535" },
+          { "t": 1.0, "color": "#7a3060" }
+        ],
+        "tipColorA": "#774455", "tipColorB": "#aa6688",
+        "orbColor": "#994466", "orbAltColor": "#bb7788", "orbSpecial": "#ddbbcc",
+        "glowColor": "rgba(140,50,90,0.35)", "glowBlur": 18, "spread": 0.45,
+        "bgCenter": "#130010", "bgEdge": "#050003"
+      },
+      "OPTIMAL": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#1a0015" },
+          { "t": 0.25, "color": "#aa0055" },
+          { "t": 0.55, "color": "#ff44cc" },
+          { "t": 0.80, "color": "#ff9900" },
+          { "t": 1.0,  "color": "#ffee44" }
+        ],
+        "tipColorA": "#ff44cc", "tipColorB": "#ffee44",
+        "orbColor": "#ff55cc", "orbAltColor": "#ffcc44", "orbSpecial": "#ffffff",
+        "glowColor": "rgba(255,60,150,0.70)", "glowBlur": 55, "spread": 0.50,
+        "bgCenter": "#1a0015", "bgEdge": "#060004"
+      },
+      "OVERHEAT": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#2a0010" },
+          { "t": 0.25, "color": "#cc0040" },
+          { "t": 0.55, "color": "#ff0088" },
+          { "t": 0.80, "color": "#ff6600" },
+          { "t": 1.0,  "color": "#ffee00" }
+        ],
+        "tipColorA": "#ff0066", "tipColorB": "#ffee00",
+        "orbColor": "#ff0066", "orbAltColor": "#ff8800", "orbSpecial": "#ffffff",
+        "glowColor": "rgba(255,0,80,0.85)", "glowBlur": 70, "spread": 0.62,
+        "bgCenter": "#1a0008", "bgEdge": "#070002"
+      },
+      "COOLDOWN": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#0e0818" },
+          { "t": 0.28, "color": "#3d1060" },
+          { "t": 0.58, "color": "#cc88bb" },
+          { "t": 0.82, "color": "#ffbbdd" },
+          { "t": 1.0,  "color": "#ffe8f5" }
+        ],
+        "tipColorA": "#ffbbdd", "tipColorB": "#ffe8f5",
+        "orbColor": "#ee99cc", "orbAltColor": "#ffccee", "orbSpecial": "#fff0f8",
+        "glowColor": "rgba(200,100,170,0.45)", "glowBlur": 32, "spread": 0.35,
+        "bgCenter": "#0a0518", "bgEdge": "#030108"
+      }
+    },
+    "DEEP_VINE": {
+      "label": "심해덩굴",
+      "DORMANT": {
+        "colorStops": [
+          { "t": 0.0, "color": "#010810" },
+          { "t": 0.5, "color": "#0a2035" },
+          { "t": 1.0, "color": "#184060" }
+        ],
+        "tipColorA": "#1a4060", "tipColorB": "#205575",
+        "orbColor": "#1a5070", "orbAltColor": "#2a6080", "orbSpecial": "#88aacc",
+        "glowColor": "rgba(20,80,120,0.35)", "glowBlur": 18, "spread": 0.42,
+        "bgCenter": "#010810", "bgEdge": "#000306"
+      },
+      "OPTIMAL": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#001020" },
+          { "t": 0.25, "color": "#003355" },
+          { "t": 0.55, "color": "#006688" },
+          { "t": 0.80, "color": "#00bbaa" },
+          { "t": 1.0,  "color": "#00ffcc" }
+        ],
+        "tipColorA": "#00bbaa", "tipColorB": "#00ffcc",
+        "orbColor": "#00ddcc", "orbAltColor": "#00ffcc", "orbSpecial": "#aaffee",
+        "glowColor": "rgba(0,220,180,0.65)", "glowBlur": 45, "spread": 0.40,
+        "bgCenter": "#001520", "bgEdge": "#000508"
+      },
+      "OVERHEAT": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#001030" },
+          { "t": 0.25, "color": "#0033aa" },
+          { "t": 0.55, "color": "#0077ff" },
+          { "t": 0.80, "color": "#44ccff" },
+          { "t": 1.0,  "color": "#aaeeff" }
+        ],
+        "tipColorA": "#0088ff", "tipColorB": "#aaeeff",
+        "orbColor": "#0099ff", "orbAltColor": "#55ddff", "orbSpecial": "#ffffff",
+        "glowColor": "rgba(0,140,255,0.80)", "glowBlur": 60, "spread": 0.55,
+        "bgCenter": "#000820", "bgEdge": "#000308"
+      },
+      "COOLDOWN": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#040510" },
+          { "t": 0.28, "color": "#151560" },
+          { "t": 0.58, "color": "#4455bb" },
+          { "t": 0.82, "color": "#7799cc" },
+          { "t": 1.0,  "color": "#aabbee" }
+        ],
+        "tipColorA": "#88aaee", "tipColorB": "#ccddff",
+        "orbColor": "#6688cc", "orbAltColor": "#99aadd", "orbSpecial": "#eeeeff",
+        "glowColor": "rgba(80,110,200,0.45)", "glowBlur": 28, "spread": 0.32,
+        "bgCenter": "#040508", "bgEdge": "#020205"
+      }
+    },
+    "HOLOGRAM_SUCCULENT": {
+      "label": "홀로그램다육이",
+      "DORMANT": {
+        "colorStops": [
+          { "t": 0.0, "color": "#080810" },
+          { "t": 0.5, "color": "#18182a" },
+          { "t": 1.0, "color": "#404058" }
+        ],
+        "tipColorA": "#555575", "tipColorB": "#7777aa",
+        "orbColor": "#6666aa", "orbAltColor": "#8888bb", "orbSpecial": "#ccccee",
+        "glowColor": "rgba(100,100,160,0.30)", "glowBlur": 16, "spread": 0.45,
+        "bgCenter": "#070710", "bgEdge": "#020208"
+      },
+      "OPTIMAL": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#050510" },
+          { "t": 0.25, "color": "#001a33" },
+          { "t": 0.55, "color": "#00ccff" },
+          { "t": 0.80, "color": "#ff00ff" },
+          { "t": 1.0,  "color": "#ffffff" }
+        ],
+        "tipColorA": "#00ccff", "tipColorB": "#ff00ff",
+        "orbColor": "#00ffff", "orbAltColor": "#ff00ff", "orbSpecial": "#ffffff",
+        "glowColor": "rgba(0,200,255,0.65)", "glowBlur": 50, "spread": 0.48,
+        "bgCenter": "#050510", "bgEdge": "#020206"
+      },
+      "OVERHEAT": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#08050f" },
+          { "t": 0.25, "color": "#cc00ff" },
+          { "t": 0.52, "color": "#ff00cc" },
+          { "t": 0.78, "color": "#ffff00" },
+          { "t": 1.0,  "color": "#ffffff" }
+        ],
+        "tipColorA": "#ff00ff", "tipColorB": "#ffff00",
+        "orbColor": "#ff00ff", "orbAltColor": "#ffcc00", "orbSpecial": "#ffffff",
+        "glowColor": "rgba(200,0,255,0.80)", "glowBlur": 65, "spread": 0.60,
+        "bgCenter": "#090510", "bgEdge": "#040207"
+      },
+      "COOLDOWN": {
+        "colorStops": [
+          { "t": 0.0,  "color": "#040510" },
+          { "t": 0.28, "color": "#1a1a3a" },
+          { "t": 0.58, "color": "#4488aa" },
+          { "t": 0.82, "color": "#88bbcc" },
+          { "t": 1.0,  "color": "#ccddee" }
+        ],
+        "tipColorA": "#88ccee", "tipColorB": "#cceeff",
+        "orbColor": "#66aacc", "orbAltColor": "#99ccdd", "orbSpecial": "#eef8ff",
+        "glowColor": "rgba(80,150,200,0.40)", "glowBlur": 30, "spread": 0.30,
+        "bgCenter": "#040508", "bgEdge": "#020205"
+      }
     }
   }
 }

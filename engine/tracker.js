@@ -26,8 +26,6 @@ const Tracker = (() => {
   let typingState = 'NORMAL';
   // 관객 이벤트 발생 플래그 (renderer 파티클 트리거용)
   let pendingCrowdEvent = false;
-  // 초몰입 진입 플래그 (renderer 파티클 트리거용)
-  let prevTypingState = 'NORMAL';
 
   let tickInterval = null;
 
@@ -45,13 +43,7 @@ const Tracker = (() => {
 
     cpm = calcCurrentCPM();
     const bsRatio = totalKeyCount > 0 ? backspaceCount / totalKeyCount : 0;
-    const prevState = typingState;
     typingState = detectTypingState(cpm, bsRatio);
-
-    // 초몰입 진입 시 파티클 트리거
-    if (prevState !== 'FOCUS' && typingState === 'FOCUS') {
-      prevTypingState = typingState;
-    }
 
     if (typingState === 'FOCUS' || typingState === 'RAGE') {
       score = calcBurstInput(score);
@@ -96,6 +88,13 @@ const Tracker = (() => {
       backspaceCount++;
     }
 
+    // 오타율 슬라이딩 감쇠: 키 입력이 윈도우를 넘으면 카운터를 절반으로
+    // → 세션 초반의 오타가 영구히 RAGE 판정에 영향 주는 것 방지 (최근 입력에 가중치)
+    if (totalKeyCount >= (SPEC.TYPO_DECAY_KEY_WINDOW || 120)) {
+      totalKeyCount  = Math.floor(totalKeyCount / 2);
+      backspaceCount = Math.floor(backspaceCount / 2);
+    }
+
     keystrokeTimestamps.push(Date.now());
 
     // NORMAL 상태에서만 건당 점수 적용 (FOCUS/RAGE는 tick에서 일괄 처리)
@@ -117,6 +116,42 @@ const Tracker = (() => {
     score = calcShortInput(score);
   }
 
+  // 에디터 브리지(editor-bridge.js)에서 타이핑 집계 수신 시 호출
+  // keys에는 백스페이스 키도 포함된다 (onKeyDown과 동일한 집계 방식)
+  function onEditorActivity(keys, backspaces) {
+    const count = Math.floor(keys) || 0;
+    if (count <= 0) return;
+
+    const now = Date.now();
+    lastInputTime = now;
+    backspaceCount += Math.floor(backspaces) || 0;
+
+    for (let i = 0; i < count; i++) {
+      totalKeyCount++;
+
+      // 오타율 슬라이딩 감쇠 (onKeyDown과 동일)
+      if (totalKeyCount >= (SPEC.TYPO_DECAY_KEY_WINDOW || 120)) {
+        totalKeyCount  = Math.floor(totalKeyCount / 2);
+        backspaceCount = Math.floor(backspaceCount / 2);
+      }
+
+      keystrokeTimestamps.push(now);
+
+      // NORMAL 상태에서만 건당 점수 적용 (FOCUS/RAGE는 tick에서 일괄 처리)
+      if (typingState === 'NORMAL') {
+        score = calcShortInput(score);
+      }
+    }
+  }
+
+  // 에디터/전역 에이전트에서 마우스 이동 수신 시 호출
+  // (브라우저 탭 밖의 마우스 움직임도 점수에 반영 — onMouseMove와 동일 효과)
+  function onEditorMouseMove(moves) {
+    if (!moves || moves <= 0) return;
+    lastInputTime = Date.now();
+    mouseMoveThisSecond = true; // tick()에서 초당 1회 calcMouseMove 적용
+  }
+
   // 관객 메시지 수신 시 외부에서 호출
   function onCrowdMessage(keyword) {
     const prev = score;
@@ -127,11 +162,10 @@ const Tracker = (() => {
   }
 
   // 현재 상태를 renderer/UI로 전달하기 위한 스냅샷
+  // (FOCUS 진입 감지는 index.html에서 prevTyping 비교로 처리)
   function getState() {
     const hasCrowd = pendingCrowdEvent;
-    const hasFocusEnter = prevTypingState === 'FOCUS' && typingState === 'FOCUS';
     pendingCrowdEvent = false;
-    prevTypingState = typingState;
 
     return {
       score,
@@ -139,9 +173,8 @@ const Tracker = (() => {
       cpm: Math.round(cpm),
       typingState,
       hasCrowdEvent: hasCrowd,
-      hasFocusEnter,
     };
   }
 
-  return { init, onCrowdMessage, getState };
+  return { init, onCrowdMessage, onEditorActivity, onEditorMouseMove, getState };
 })();

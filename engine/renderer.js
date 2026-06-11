@@ -11,7 +11,9 @@
 
 const Renderer = (() => {
   let canvas, ctx;
-  let PALETTE = null;
+  let PALETTE = null;  // 현재 활성 테마의 팔레트 세트 (DORMANT/OPTIMAL/OVERHEAT/COOLDOWN 맵)
+  let THEMES  = null;  // spec.json THEMES + GLOWING_TREE(= 기존 PALETTE) 통합 맵
+  let currentTheme = 'GLOWING_TREE';
   let particles = [];
   let treeTips  = [];
   let currentScore = 50;
@@ -47,6 +49,18 @@ const Renderer = (() => {
     scoreVelocity:   0,   // 점수 스프링 속도
     effectiveDepth:  6,   // 스프링으로 targetDepth를 쫓음
     depthVelocity:   0,   // 깊이 스프링 속도
+  };
+
+  // 작은 별 정적 캐시 레이어 (성능 최적화: buildStarLayer 참고)
+  let starLayer = null;
+
+  // ─── 가상 카메라 (줌아웃 + 패닝) ────────────────────────────────
+  // 식물이 커지면 스프링 물리로 부드럽게 줌아웃하고 위로 패닝
+  const cam = {
+    scale:    1.0,   // 현재 줌 (1=원본, 0.5=절반 크기로 줌아웃)
+    scaleVel: 0,     // 줌 스프링 속도
+    panY:     0,     // 수직 패닝 오프셋 (음수=위로)
+    panYVel:  0,     // 패닝 스프링 속도
   };
 
   // ─── 순차 생장 ───────────────────────────────────────────────
@@ -331,85 +345,181 @@ const Renderer = (() => {
     ctx.bezierCurveTo(-wid * 0.52,-len * 0.68,  -wid,         -len * 0.28,  0,  0);
 
     const grad = ctx.createLinearGradient(0, 0, 0, -len);
-    grad.addColorStop(0.0,  hexToRgba(ep.tipColorA,  0.55 * eased * bp));
-    grad.addColorStop(0.45, hexToRgba(ep.tipColorB,  0.80 * eased * bp));
-    grad.addColorStop(1.0,  hexToRgba(ep.orbSpecial, 0.50 * eased * bp));
+    grad.addColorStop(0.0,  hexToRgba(ep.tipColorA,  0.62 * eased * bp));
+    grad.addColorStop(0.40, hexToRgba(ep.tipColorB,  0.90 * eased * bp));
+    grad.addColorStop(0.80, hexToRgba(ep.orbSpecial, 0.72 * eased * bp));
+    grad.addColorStop(1.0,  hexToRgba(ep.orbSpecial, 0.40 * eased * bp));
 
-    ctx.shadowBlur  = 18 * eased * bp;
+    // 글로우 강화: shadowBlur 18 → 32
+    ctx.shadowBlur  = 32 * eased * bp;
     ctx.shadowColor = ep.glowColor;
     ctx.fillStyle   = grad;
     ctx.fill();
 
-    // ── 잎맥 (발광 중앙선) ──
+    // 2차 글로우 패스 (외곽 확산광)
+    ctx.shadowBlur  = 55 * eased * bp;
+    ctx.globalAlpha = 0.22 * eased * bp;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // ── 잎맥 (발광 중앙선) — 더 밝게 ──
     ctx.beginPath();
     ctx.moveTo(0, -len * 0.05);
-    ctx.lineTo(0, -len * 0.90);
-    ctx.strokeStyle = hexToRgba(ep.orbSpecial, 0.30 * eased * bp);
-    ctx.lineWidth   = 0.7;
-    ctx.shadowBlur  = 5;
+    ctx.lineTo(0, -len * 0.88);
+    ctx.strokeStyle = hexToRgba(ep.orbSpecial, 0.52 * eased * bp);
+    ctx.lineWidth   = 1.1;
+    ctx.shadowBlur  = 10;
     ctx.stroke();
+
+    // 잎 끝 발광 포인트
+    ctx.beginPath();
+    ctx.arc(0, -len * 0.92, len * 0.06, 0, Math.PI * 2);
+    ctx.fillStyle   = hexToRgba(ep.orbSpecial, 0.68 * eased * bp);
+    ctx.shadowBlur  = 14;
+    ctx.fill();
 
     ctx.restore();
   }
 
   function drawAllLeaves(time, ep) {
-    // spec.json의 BASE_LEAF_SIZE + 점수 비례 보정 → 잎의 기본 크기 기준값
-    const BASE_LEAF_SIZE = (window.SPEC.BASE_LEAF_SIZE || 10) * (1 + renderState.displayScore * 0.005);
+    const BASE_LEAF_SIZE = (window.SPEC.BASE_LEAF_SIZE || 10) * 4.2 * (1 + renderState.displayScore * 0.008);
 
-    // COOLDOWN: 잎이 에너지를 잃고 서서히 수축하는 시각적 피드백
-    const cooldownW    = getStateWeight('COOLDOWN');
-    const cooldownShrink = 1 - cooldownW * 0.55; // COOLDOWN 100%에서 45% 크기로
-    const droop        = cooldownW * 0.38;        // 중력에 처지는 각도
+    const cooldownW      = getStateWeight('COOLDOWN');
+    const cooldownShrink = 1 - cooldownW * 0.55;
+    const droop          = cooldownW * 0.38;
 
-    treeTips.forEach((tip) => {
-      // ── 체인 게이트: 가지가 99% 이상 자라기 전까지 잎 출현 완전 차단 ──
-      if (tip.gf < 0.99) return;
+    // 성능 안전망: treeTips가 너무 많으면 앞 60개만 처리
+    const tips = treeTips.length > 60 ? treeTips.slice(0, 60) : treeTips;
+    tips.forEach((tip) => {
+      // ── 게이트: 가지 25% 이상 자라면 잎 출현 허용 (score ~40 목표) ──
+      if (tip.gf < 0.25) return;
 
-      // branchId 기반 잎 선택 (75% 확률, 나머지는 빈 끝가지)
-      if (seededRandom(tip.id * 31 + 3) > 0.75) return;
+      // 사실상 모든 가지 끝에 잎 (98%)
+      if (seededRandom(tip.id * 31 + 3) > 0.98) return;
 
-      // ── 가지 완료 시점 역산 → 잎의 '탄생 시간(Birth Time)' 기준점 ──
       const li        = tip.li !== undefined ? tip.li : 0;
-      const threshold = branchCompletionThreshold(li, tip.id);
+      // 0.8 앞당김 → 가지가 완전히 자라기 전에 잎이 먼저 나오기 시작
+      const threshold = branchCompletionThreshold(li, tip.id) - 0.8;
       const leafAge   = Math.max(0, growthProgress - threshold);
 
-      // ── 좌표 시드 DNA: 같은 좌표 → 항상 같은 크기/속도 (Stateless) ──
       const leafSeed    = Math.sin(tip.x * 12.3 + tip.y * 45.6);
       const absS        = Math.abs(leafSeed);
-      // 크기: 0.5x ~ 2.0x BASE_LEAF_SIZE (3~20px 범위에서 제각각)
-      const maxLeafSize = BASE_LEAF_SIZE * (0.5 + absS * 1.5);
-      // 속도: 느린 잎(0.8x) ~ 빠른 잎(2.0x)
-      const growthSpeed = 0.8 + absS * 1.2;
+      // 크기 범위: 1.0x ~ 4.2x BASE_LEAF_SIZE → 다양한 잎 크기
+      const maxLeafSize = BASE_LEAF_SIZE * (1.0 + absS * 3.2);
+      const growthSpeed = 1.4 + absS * 1.8;
 
-      // ── 잎 개별 leafProgress 계산 (이 잎만의 0→1 타임라인) ──
-      const leafProgress = Math.min(1.0, leafAge * growthSpeed);
+      // gf: 중간 가지 팁은 부모 gf에 비례해서 잎 크기 점진적 증가 (처음부터 꽉 찬 잎 방지)
+      const gfScale      = Math.min(1.0, tip.gf * 1.5);
+      const leafProgress = Math.min(1.0, leafAge * growthSpeed) * gfScale;
       if (leafProgress < 0.01) return;
 
-      // ── 실제 크기: 스프링 이징(팡!) + COOLDOWN 수축 ──
       const currentLeafSize = maxLeafSize * cooldownShrink;
-
-      // ── 핵심: 좌표 DNA 기반 개별 뻗음 방향각 ────────────────────
-      // leafSeed(-1~1) × 1.25 rad ≈ ±72° 범위에서 각 잎이 고유한 방향으로 뻗어나감
-      // 가지 끝에서 "사방으로 흩어지는" 자연스러운 식물 실루엣 완성
-      const leafDir = leafSeed * 1.25;
+      const leafDir         = leafSeed * 1.25;
 
       drawLeaf(tip.x, tip.y, tip.angle, currentLeafSize, ep, time, leafProgress, leafDir, droop);
 
-      // ── 보조 잎: 35% 확률로 주 잎 이후 약간 늦게 팝콘처럼 터짐 ──
-      if (seededRandom(tip.id * 47 + 7) > 0.65) {
-        const subSeed      = Math.sin(tip.x * 8.7 + tip.y * 33.2 + 1.5);
-        const absSubS      = Math.abs(subSeed);
-        const subMaxSize   = BASE_LEAF_SIZE * (0.3 + absSubS * 0.85);
-        const subSpeed     = 0.7 + absSubS * 1.1;
-        const subAge       = Math.max(0, leafAge - 0.4);
-        const subProgress  = Math.min(1.0, subAge * subSpeed);
+      // ── 2번째 잎: 50% 확률 (성능 최적화: 92% → 50%) ──
+      if (seededRandom(tip.id * 47 + 7) > 0.50) {
+        const subSeed     = Math.sin(tip.x * 8.7 + tip.y * 33.2 + 1.5);
+        const absSubS     = Math.abs(subSeed);
+        const subMaxSize  = BASE_LEAF_SIZE * (0.75 + absSubS * 2.2);
+        const subSpeed    = 1.3 + absSubS * 1.6;
+        const subAge      = Math.max(0, leafAge - 0.15);
+        const subProgress = Math.min(1.0, subAge * subSpeed);
         if (subProgress > 0.01) {
-          const subSize    = subMaxSize * cooldownShrink;
-          // 보조 잎은 주 잎 반대 방향으로 기울어짐 → 한 가지 끝에 양쪽으로 벌어진 잎 쌍
-          const subDir     = subSeed * 1.25 + Math.PI * 0.25;
-          drawLeaf(tip.x, tip.y, tip.angle, subSize, ep, time, subProgress, subDir, droop);
+          const subDir = subSeed * 1.25 + Math.PI * 0.25;
+          drawLeaf(tip.x, tip.y, tip.angle, subMaxSize * cooldownShrink, ep, time, subProgress, subDir, droop);
         }
       }
+
+      // ── 3번째 잎: 35% 확률 (성능 최적화: 80% → 35%) ──
+      if (seededRandom(tip.id * 61 + 11) > 0.65) {
+        const triSeed     = Math.sin(tip.x * 5.5 + tip.y * 22.1 + 3.0);
+        const absTriS     = Math.abs(triSeed);
+        const triMaxSize  = BASE_LEAF_SIZE * (0.65 + absTriS * 1.8);
+        const triSpeed    = 1.2 + absTriS * 1.5;
+        const triAge      = Math.max(0, leafAge - 0.28);
+        const triProgress = Math.min(1.0, triAge * triSpeed);
+        if (triProgress > 0.01) {
+          const triDir = triSeed * 1.25 - Math.PI * 0.18;
+          drawLeaf(tip.x, tip.y, tip.angle, triMaxSize * cooldownShrink, ep, time, triProgress, triDir, droop);
+        }
+      }
+
+      // ── 4번째·5번째 잎: 제거 (성능 최적화) ──
+
+      // ── 잎 끝 반짝임 (15% 확률, 성능 최적화: 30% → 15%) ──
+      if (leafProgress > 0.9 && seededRandom(tip.id * 113 + 29) > 0.85) {
+        const sparkPhase = Math.sin(time * 0.007 + tip.x * 0.03 + tip.y * 0.025);
+        if (sparkPhase > 0.5) {
+          ctx.save();
+          ctx.globalAlpha = (sparkPhase - 0.5) * 2 * 0.65 * (1 - cooldownW * 0.7);
+          ctx.shadowBlur  = 22; ctx.shadowColor = ep.orbSpecial;
+          ctx.fillStyle   = ep.orbSpecial;
+          ctx.beginPath();
+          ctx.arc(tip.x, tip.y - currentLeafSize * 0.85, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    });
+  }
+
+  // ─── 낙엽 파티클 (글로잉나무 전용) ──────────────────────────────
+  // 성장 완료된 가지 끝에서 잎이 떨어져 나선형으로 낙하
+  let fallingLeaves = [];
+
+  function updateFallingLeaves(time, ep) {
+    if (currentTheme !== 'GLOWING_TREE') {
+      if (fallingLeaves.length) fallingLeaves = [];
+      return;
+    }
+    const fx   = window.SPEC.FX || {};
+    const maxN = fx.FALLING_LEAF_MAX || 8;
+    const cdW  = getStateWeight('COOLDOWN');
+
+    // 스폰: COOLDOWN에서 빈도 증가 (휴식의 서정성)
+    const spawnP = 0.015 + cdW * 0.05;
+    if (fallingLeaves.length < maxN && Math.random() < spawnP) {
+      const grown = treeTips.filter(t => t.gf > 0.8);
+      if (grown.length) {
+        const src = grown[Math.floor(Math.random() * grown.length)];
+        fallingLeaves.push({
+          x: src.x, y: src.y,
+          vx: (Math.random() - 0.5) * 0.4,
+          vy: 0.15 + Math.random() * 0.3,
+          rot:  Math.random() * Math.PI * 2,
+          rotV: (Math.random() - 0.5) * 0.045,
+          size: 4 + Math.random() * 7,
+          life: 1,
+          ph:   Math.random() * Math.PI * 2,
+        });
+      }
+    }
+
+    const baseY = canvas.height * 0.88;
+    fallingLeaves = fallingLeaves.filter(l => l.life > 0.02 && l.y < baseY + 8);
+    fallingLeaves.forEach(l => {
+      l.x   += l.vx + Math.sin(time * 0.002 + l.ph) * 0.65; // 좌우 살랑임
+      l.y   += l.vy;
+      l.vy   = Math.min(l.vy + 0.0045, 0.95);               // 중력 가속 (종단 속도 제한)
+      l.rot += l.rotV;
+      l.life -= 0.0022;
+
+      ctx.save();
+      ctx.translate(l.x, l.y);
+      ctx.rotate(l.rot);
+      ctx.globalAlpha = l.life * 0.85;
+      ctx.fillStyle   = ep.tipColorA;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, l.size, l.size * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // 잎맥 라인
+      ctx.globalAlpha = l.life * 0.45;
+      ctx.strokeStyle = ep.orbSpecial;
+      ctx.lineWidth   = 0.7;
+      ctx.beginPath(); ctx.moveTo(-l.size * 0.8, 0); ctx.lineTo(l.size * 0.8, 0); ctx.stroke();
+      ctx.restore();
     });
   }
 
@@ -507,6 +617,14 @@ const Renderer = (() => {
     ctx.shadowBlur=ep.glowBlur*(0.35+tEnd*0.65)*bp; ctx.shadowColor=ep.glowColor;
     ctx.strokeStyle=branchGrad; bezierPath(); ctx.stroke(); ctx.restore();
 
+    // 하위 가지가 아직 성장 전일 때, 현재 가지 끝단을 잎 위치로 등록
+    // → 낮은 score에서도 자라고 있는 가지 끝에 잎이 나오게 함
+    const childLI = levelIndex + 1;
+    const childGF = calcBranchGrowthFactor(childLI, branchId * 2);
+    if (growthFactor > 0.25 && childGF < 0.35 && depth >= 1) {
+      treeTips.push({ x: x2, y: y2, angle: organicAngle, gf: growthFactor, id: branchId, li: levelIndex });
+    }
+
     const nextLen    = organicLength*(0.62+sr(3)*0.13);
     const leftAngle  = organicAngle - ep.spread*(0.82+sr(4)*0.36);
     const rightAngle = organicAngle + ep.spread*(0.82+sr(5)*0.36);
@@ -522,20 +640,943 @@ const Renderer = (() => {
   // ─── 나무 전체 ────────────────────────────────────────────────
   function drawTree(time, ep) {
     treeTips = [];
-    // effectiveDepth Lerp: 정수 점프 대신 연속 Lerp → 가지 수 급변 차단
-    // Math.round로 최종 정수화 (프랙탈 재귀는 정수 depth 필요)
-    const maxDepth = Math.max(3, Math.min(10, Math.round(renderState.effectiveDepth)));
-    const cx       = canvas.width  / 2;
-    const cy       = canvas.height * 0.88;
-    const breathe  = 1 + Math.sin(time * 0.0009) * 0.025;
-    // 점수 0: 화면 높이 14%, 점수 100: 화면 높이 52% → 3.7배 차이로 극적인 성장감
-    const trunkLen = canvas.height * (0.14 + renderState.displayScore * 0.0038) * breathe;
-
-    // growthTarget은 updateGrowthProgress에서 이미 계산됨 (중복 계산 제거)
+    const maxDepth   = Math.max(3, Math.min(10, Math.round(renderState.effectiveDepth)));
+    const cx         = canvas.width  / 2;
+    const cy         = canvas.height * 0.88;
+    const breathe    = 1 + Math.sin(time * 0.0009) * 0.025;
+    const scoreRatio = renderState.displayScore / 100;
 
     drawGround(cx, cy, time, ep);
-    drawBranch(cx, cy, -Math.PI/2, trunkLen, maxDepth, maxDepth, ep, time, 1);
-    drawAllLeaves(time, ep);
+
+    switch (currentTheme) {
+      case 'NEON_LOTUS':
+        drawLotus(cx, cy, time, ep);
+        drawDriftingPetals(cx, cy, time, ep);  // 수면 위 떠다니는 꽃잎
+        break;
+      case 'DEEP_VINE':
+        drawVine(cx, cy, time, ep);
+        // drawAllLeaves 제거: 4.2× 크기 잎이 수십 개 덩굴 끝에 중복 적용되어 폭발적으로 증가
+        drawVineBubbles(cx, cy, time, ep);     // 상승 기포
+        drawVineFog(ep);                       // 하단 원근 안개
+        break;
+      case 'HOLOGRAM_SUCCULENT':
+        drawSucculent(cx, cy, time, ep);
+        break;
+      default: {
+        // 글로잉나무: drawBranch가 trunk부터 가지까지 자연스럽게 통합 렌더
+        const trunkLen = canvas.height * (0.14 + renderState.displayScore * 0.0038) * breathe;
+
+        // 수관 글로우: 캐노피 영역 은은한 후광 (나무 뒤)
+        const canopyR = canvas.height * 0.30 * scoreRatio;
+        if (canopyR > 20) {
+          const cgy = cy - trunkLen * 1.6;
+          const cg  = ctx.createRadialGradient(cx, cgy, 0, cx, cgy, canopyR);
+          cg.addColorStop(0, ep.glowColor.replace(/[\d.]+\)$/, '0.13)'));
+          cg.addColorStop(1, ep.glowColor.replace(/[\d.]+\)$/, '0)'));
+          ctx.fillStyle = cg;
+          ctx.fillRect(cx - canopyR, cgy - canopyR, canopyR * 2, canopyR * 2);
+        }
+
+        drawBranch(cx, cy, -Math.PI / 2, trunkLen, maxDepth, maxDepth, ep, time, 1);
+        drawAllLeaves(time, ep);
+        break;
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ─── 테마: 네온연꽃 ────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * 수면 잔물결 + 반사 글로우 (연꽃 아래 수면 표현)
+   */
+  function drawLotusWater(cx, cy, time, ep) {
+    const r = 560 * (renderState.displayScore / 100);
+    if (r < 10) return;
+    ctx.save();
+    for (let i = 0; i < 4; i++) {
+      const t = ((time * 0.0003 + i * 0.25) % 1);
+      const rr = r * (0.30 + t * 0.70);
+      ctx.globalAlpha = (1 - t) * 0.22;
+      ctx.strokeStyle = ep.tipColorA;
+      ctx.shadowBlur  = 10; ctx.shadowColor = ep.glowColor;
+      ctx.lineWidth   = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rr, rr * 0.18, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.14;
+    const wg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    wg.addColorStop(0,   ep.glowColor.replace(/[\d.]+\)$/, '0.7)'));
+    wg.addColorStop(0.5, ep.glowColor.replace(/[\d.]+\)$/, '0.2)'));
+    wg.addColorStop(1,   'transparent');
+    ctx.fillStyle = wg;
+    ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * 연꽃 수술: 황금 orb + 방사 광선
+   */
+  function drawLotusStamen(cx, cy, time, ep, gp) {
+    const prog  = Math.max(0, Math.min(1, (gp - 0.3) / 0.5));
+    if (prog <= 0) return;
+    const orbR  = 38 * springEase(prog);
+    const pulse = 0.8 + 0.2 * Math.sin(time * 0.005);
+    ctx.save();
+    const rayCount = 16;
+    for (let i = 0; i < rayCount; i++) {
+      const a       = (i / rayCount) * Math.PI * 2;
+      const rayPulse = 0.5 + 0.5 * Math.sin(time * 0.006 + i * 0.4);
+      const rayLen  = (16 + springEase(prog) * 14) * rayPulse;
+      ctx.globalAlpha = prog * rayPulse * 0.60;
+      ctx.strokeStyle = '#ffdd44'; ctx.shadowBlur = 8; ctx.shadowColor = '#ffdd44';
+      ctx.lineWidth   = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * orbR * 0.9, cy + Math.sin(a) * orbR * 0.9);
+      ctx.lineTo(cx + Math.cos(a) * (orbR + rayLen), cy + Math.sin(a) * (orbR + rayLen));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = prog * pulse;
+    ctx.shadowBlur  = 28 * pulse; ctx.shadowColor = '#ffdd44';
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, orbR);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, '#ffdd44'); g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, orbR, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * 네온연꽃 메인 드로우
+   * - ctx.rotate() 로 꽃잎 배치
+   * - bezierCurveTo 로 꽃잎 형상
+   * - 점수 높을수록 꽃잎 활짝 열림 + 꽃가루 파티클
+   */
+  function drawLotus(cx, cy, time, ep) {
+    const gp         = Math.min(1, growthProgress / Math.max(growthTarget, 0.01));
+    const score      = renderState.displayScore;
+    const layerCount = Math.max(1, Math.round(renderState.effectiveDepth / 2));
+    // 연꽃 중심: trunk 기준선에서 화면 위로 올려 중앙에 띄움
+    const lotusCY    = cy - canvas.height * 0.22;
+
+    drawLotusWater(cx, lotusCY, time, ep);
+
+    // 바깥 레이어 먼저 (페인터 알고리즘)
+    for (let layer = layerCount - 1; layer >= 0; layer--) {
+      const petalCount = 8 + layer * 4;
+      const openThresh = layer * 0.20;
+      const openProg   = Math.max(0, Math.min(1, (gp - openThresh) * 2.8));
+      if (openProg <= 0.01) continue;
+
+      const maxOpen   = Math.PI * (0.38 + layer * 0.04);
+      const openAngle = springEase(openProg) * maxOpen;
+      // 꽃잎 3배 확장: 52→155, 38→110
+      const petalLen  = (155 + layer * 110) * (score / 100) * springEase(openProg);
+      const petalWid  = petalLen * 0.28;
+
+      for (let p = 0; p < petalCount; p++) {
+        const rotAngle   = (p / petalCount) * Math.PI * 2;
+        const petalDelay = Math.abs(Math.sin(p * 2.3)) * 0.10;
+        const pProg      = Math.max(0, Math.min(1, (openProg - petalDelay) * (1 + petalDelay)));
+        if (pProg <= 0 || petalLen < 2) continue;
+
+        const eased = springEase(pProg);
+
+        ctx.save();
+        ctx.translate(cx, lotusCY);
+        ctx.rotate(rotAngle);
+        ctx.rotate(-openAngle);
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo( petalWid, -petalLen * 0.28,  petalWid * 0.55, -petalLen * 0.73, 0, -petalLen * eased);
+        ctx.bezierCurveTo(-petalWid * 0.55, -petalLen * 0.73 * eased, -petalWid, -petalLen * 0.28 * eased, 0, 0);
+
+        const grad = ctx.createLinearGradient(0, 0, 0, -petalLen * eased);
+        grad.addColorStop(0,    hexToRgba(ep.tipColorA, 0.52 * eased));
+        grad.addColorStop(0.45, hexToRgba(ep.tipColorB, 0.80 * eased));
+        grad.addColorStop(1,    hexToRgba(ep.orbSpecial, 0.18 * eased));
+        ctx.shadowBlur  = ep.glowBlur * 0.55 * eased;
+        ctx.shadowColor = ep.glowColor;
+        ctx.fillStyle   = grad;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(0, -petalLen * 0.06 * eased);
+        ctx.lineTo(0, -petalLen * 0.88 * eased);
+        ctx.strokeStyle = hexToRgba(ep.orbSpecial, 0.25 * eased);
+        ctx.lineWidth   = 0.8; ctx.shadowBlur = 5;
+        ctx.stroke();
+
+        ctx.restore();
+
+        const wx = cx + Math.cos(rotAngle) * petalLen * Math.sin(openAngle) * eased;
+        const wy = lotusCY - petalLen * Math.cos(openAngle) * eased;
+        treeTips.push({ x: wx, y: wy, angle: rotAngle - Math.PI / 2, gf: pProg, id: layer * 100 + p, li: layer });
+      }
+    }
+
+    drawLotusStamen(cx, lotusCY, time, ep, gp);
+
+    if (gp > 0.75 && Math.random() < 0.10) {
+      const pollenEp = { ...ep, orbColor: '#ffdd44', orbAltColor: '#ffee88', orbSpecial: '#ffff99' };
+      spawnParticles(2, 'focus', pollenEp);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  /**
+   * 수면 위 떠다니는 꽃잎: 분리된 꽃잎이 물결 따라 흘러감 (stateless)
+   */
+  function drawDriftingPetals(cx, cy, time, ep) {
+    const fx = window.SPEC.FX || {};
+    const n  = fx.LOTUS_DRIFT_PETALS || 6;
+
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const sp   = 0.012 + seededRandom(i * 17 + 3) * 0.022;
+      const x    = ((time * sp + i * 431) % (canvas.width + 160)) - 80;
+      const bob  = Math.sin(time * 0.001 + i * 1.7) * 7;             // 물결 위 출렁임
+      const y    = cy + bob + (seededRandom(i * 7 + 2) - 0.5) * 26;
+      const rot  = Math.sin(time * 0.0008 + i * 2.1) * 0.6;
+      const size = 7 + seededRandom(i * 5 + 9) * 9;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle   = i % 2 === 0 ? ep.tipColorA : ep.tipColorB;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, size, size * 0.38, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 꽃잎 아래 수면 반사 잔영
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle   = ep.tipColorA;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 9, size * 0.85, size * 0.16, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ─── 테마: 심해덩굴 ────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * 상승 기포: 덩굴 뿌리에서 올라오는 기포 (stateless, 흔들리며 상승)
+   */
+  function drawVineBubbles(cx, cy, time, ep) {
+    const fx = window.SPEC.FX || {};
+    const n  = fx.VINE_BUBBLE_COUNT || 15;
+    const riseMax = canvas.height * 0.80;
+
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const sp   = 0.018 + seededRandom(i * 11 + 2) * 0.05;
+      const rise = (time * sp + i * 977) % riseMax;
+      const x    = cx + (seededRandom(i * 5 + 1) - 0.5) * canvas.width * 0.62
+                   + Math.sin(time * 0.002 + i * 1.4) * 13;   // 좌우 흔들림
+      const y    = cy - rise;
+      const r    = 1.5 + seededRandom(i * 3 + 7) * 4;
+      const a    = Math.max(0, 0.55 * (1 - rise / riseMax)) + 0.08;
+
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = ep.tipColorB;
+      ctx.lineWidth   = 1;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+
+      // 기포 안 하이라이트 (좌상단 빛 반사)
+      ctx.globalAlpha = a * 0.8;
+      ctx.strokeStyle = ep.orbSpecial;
+      ctx.lineWidth   = 0.8;
+      ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.35, Math.PI * 0.8, Math.PI * 1.6); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 하단 원근 안개: 심해 깊이감 (카메라 변환 안에서도 커버되도록 여유 영역)
+   */
+  function drawVineFog(ep) {
+    const g = ctx.createLinearGradient(0, canvas.height * 0.55, 0, canvas.height);
+    g.addColorStop(0, 'rgba(0,8,18,0)');
+    g.addColorStop(1, 'rgba(0,8,18,0.60)');
+    ctx.save();
+    ctx.fillStyle = g;
+    ctx.fillRect(-canvas.width, canvas.height * 0.55, canvas.width * 3, canvas.height);
+    ctx.restore();
+  }
+
+  /**
+   * 심해덩굴 메인 드로우
+   * - 여러 갈래 줄기가 화면 하단에서 상승
+   * - Math.sin() 으로 각 줄기가 독립적으로 해초처럼 흔들림
+   * - 분기점에 생물발광 노드, 덩굴손 끝에 나선형 컬
+   */
+  function drawVine(cx, cy, time, ep) {
+    const gp           = Math.min(1, growthProgress / Math.max(growthTarget, 0.01));
+    const score        = renderState.displayScore;
+    // score 구간별 덩굴 개체수: 4 → 7개로 점진 증가
+    const strandCount  = 4 + Math.min(3, Math.floor(score / 30));
+    const maxHeight    = canvas.height * Math.min(0.86, 0.52 + score * 0.004);
+    const totalLen     = maxHeight * gp;
+    if (totalLen < 10) return;
+
+    for (let s = 0; s < strandCount; s++) {
+      // 개체수가 늘수록 간격 살짝 좁혀서 화면 안에 자연스럽게 배치
+      const spreadMul = Math.max(0.10, 0.15 - strandCount * 0.006);
+      const spreadX   = (s - (strandCount - 1) / 2) * (canvas.width * spreadMul);
+      const baseX     = cx + spreadX;
+      // 각 덩굴마다 개성 있는 위상·주파수·진폭 (s값이 클수록 변형 증가)
+      const phase   = s * 2.1 + 3.7;
+      const freq    = 0.00075 + s * 0.00015;
+      const amp     = 48 + s * 28;
+      const segs    = 10;
+      const segLen  = totalLen / segs;
+
+      // ── 다주파수 흔들림: 3개 사인파를 합성해서 유기적 해초 운동 ──
+      // 저주파(느린 큰 흔들) + 중주파(리드미컬) + 고주파(미세 떨림)
+      function swayAt(t, phaseOffset) {
+        const slow = Math.sin(time * freq          + t * 3.5  + phaseOffset) * amp * 0.60;
+        const mid  = Math.sin(time * freq * 3.1    + t * 6.2  + phaseOffset * 1.4) * amp * 0.28;
+        const fast = Math.sin(time * freq * 8.7    + t * 11.0 + phaseOffset * 0.6) * amp * 0.12;
+        return (slow + mid + fast) * (t * 0.55 + 0.45);
+      }
+
+      const pts = [];
+      for (let i = 0; i <= segs; i++) {
+        const t  = i / segs;
+        const y  = cy - t * totalLen;
+        const sx = swayAt(t, phase);
+        pts.push({ x: baseX + sx, y, t });
+      }
+
+      // ── 줄기 그리기 ──────────────────────────────────────────────
+      // 원근 디밍: 홀수 인덱스 덩굴은 뒤쪽 레이어 → 어둡고 얇게 (깊이감)
+      const depthDim = s % 2 === 1 ? 0.55 : 1.0;
+
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i], p1 = pts[i + 1];
+        const t  = p0.t;
+        // 위로 갈수록 얇아지되 뿌리는 두껍게
+        const lw = (6.5 - t * 4.5) * (depthDim === 1 ? 1 : 0.75);
+        const al = (0.35 + t * 0.62) * depthDim;
+
+        // 아래(뿌리 색) → 위(끝 색) 그라데이션
+        const col = t < 0.35
+          ? hexToRgba(ep.tipColorA, al)
+          : t < 0.70
+          ? hexToRgba(ep.tipColorB, al)
+          : hexToRgba(ep.orbSpecial, al * 0.85);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        const mx = (p0.x + p1.x) / 2, my = (p0.y + p1.y) / 2;
+        ctx.quadraticCurveTo(p0.x, my, p1.x, p1.y);
+        ctx.lineWidth   = Math.max(0.5, lw);
+        ctx.strokeStyle = col;
+        ctx.shadowBlur  = ep.glowBlur * 0.38 * t;
+        ctx.shadowColor = ep.glowColor;
+        ctx.stroke();
+        ctx.restore();
+
+        // ── 생물발광 펄스: 뿌리 → 끝으로 빛이 흘러가는 효과 ──
+        // time * 속도 - t * PI: t=0(뿌리)에서 시작해 t=1(끝)로 이동하는 펄스
+        const pulseTrav = (Math.sin(time * 0.0018 - t * Math.PI * 2 + phase) + 1) * 0.5;
+        const nodeR     = Math.max(0.6, (3.2 - t * 1.8) * (0.4 + pulseTrav * 0.6));
+        if (i > 0) {
+          ctx.save();
+          ctx.globalAlpha = t * (0.45 + pulseTrav * 0.50);
+          ctx.shadowBlur  = 10 + pulseTrav * 18; ctx.shadowColor = ep.orbColor;
+          ctx.fillStyle   = pulseTrav > 0.7 ? ep.orbSpecial : ep.orbColor;
+          ctx.beginPath(); ctx.arc(p0.x, p0.y, nodeR, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+
+        // ── 덩굴손: 격 세그먼트에서 좌우로 분기 + 끝에 나선형 컬 ──
+        if (i > 1 && i % 2 === 1) {
+          const side  = ((i % 4 < 2 ? 1 : -1)) * (s % 2 === 0 ? 1 : -1);
+          const tLen  = (52 + s * 28) * t;
+          const tGf   = Math.min(1, (gp - 0.12) * 1.5);
+          if (tGf > 0.05) {
+            // 덩굴손 기본 경로
+            const tx  = p0.x + side * tLen * 0.85;
+            const ty  = p0.y - tLen * 0.40;
+            ctx.save();
+            ctx.globalAlpha = t * tGf * 0.80;
+            ctx.beginPath();
+            ctx.moveTo(p0.x, p0.y);
+            ctx.bezierCurveTo(p0.x + side * tLen * 0.30, p0.y - tLen * 0.15,
+                              p0.x + side * tLen * 0.70, p0.y - tLen * 0.60,
+                              tx, ty);
+            ctx.strokeStyle = hexToRgba(ep.orbAltColor, 0.70);
+            ctx.lineWidth   = 1.2;
+            ctx.shadowBlur  = 8; ctx.shadowColor = ep.glowColor;
+            ctx.stroke();
+
+            // 나선형 컬: 덩굴손 끝에서 꼬이는 작은 원호
+            const curlR   = tLen * 0.12;
+            const curlAng = time * 0.0015 * side + phase;
+            ctx.beginPath();
+            ctx.arc(tx, ty, curlR, curlAng, curlAng + Math.PI * 1.5, side < 0);
+            ctx.strokeStyle = hexToRgba(ep.orbSpecial, 0.55 * tGf);
+            ctx.lineWidth   = 0.8;
+            ctx.shadowBlur  = 5;
+            ctx.stroke();
+            ctx.restore();
+
+            treeTips.push({ x: tx, y: ty, angle: -Math.PI / 2 + side * 0.5, gf: tGf, id: (s + 1) * 30 + i, li: s });
+          }
+        }
+      }
+
+      // 줄기 최상단 → treeTips
+      const tip = pts[pts.length - 1];
+      if (tip) treeTips.push({ x: tip.x, y: tip.y, angle: -Math.PI / 2, gf: gp, id: (s + 1) * 1000, li: 0 });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ─── 테마: 홀로그램다육이 ──────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * 홀로그램 스캔라인 오버레이 (수평 선 스크롤)
+   */
+  function drawHologramScanlines(cx, cy, time, ep) {
+    const cdW    = getStateWeight('COOLDOWN');
+    const bp2    = breathPulse(time);
+    // COOLDOWN: 스캔라인 간격 좁아지고(촘촘) 알파 증가 → 홀로그램이 노이즈 뿜음
+    const gap    = 22 - cdW * 10;   // 22px → 12px
+    const alpha  = (0.038 + cdW * 0.055) * bp2;
+    const scroll = (time * (0.025 + cdW * 0.018)) % gap; // COOLDOWN: 빠르게 스크롤
+    const halfH  = canvas.height * 0.38;
+    const halfW  = canvas.width  * 0.28;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = ep.tipColorA;
+    ctx.lineWidth   = 0.5;
+    for (let i = 0; i < (halfH * 2) / gap + 1; i++) {
+      const y = cy - halfH + i * gap + scroll;
+      if (y < 0 || y > canvas.height) continue;
+      // COOLDOWN: 일부 라인에 글리치(랜덤 끊김) 효과
+      if (cdW > 0.2 && Math.sin(i * 137.5 + time * 0.003) > 0.75) {
+        ctx.globalAlpha = alpha * 2.5; // 글리치 라인 강조
+      } else {
+        ctx.globalAlpha = alpha;
+      }
+      ctx.beginPath();
+      ctx.moveTo(cx - halfW, y);
+      ctx.lineTo(cx + halfW, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 홀로그램 사구아로 — Western Movie × Cute 리디자인
+   *
+   * 팔 3개 구성 (클래식 서부 실루엣):
+   *   - 왼팔: 중간 높이, 크고 통통한 팔꿈치 처짐 (iconic western pose)
+   *   - 오른 하단팔: 낮은 위치, 짧고 귀여운 stub
+   *   - 오른 상단팔: 높은 위치, 길고 상향 곡선 (classic "hands-up" arm)
+   * + 정수리에 귀여운 홀로그램 새 실루엣 (서부 영화 고정 소품)
+   */
+  function drawSucculent(cx, cy, time, ep) {
+    const gp        = Math.min(1, growthProgress / Math.max(growthTarget, 0.01));
+    const score     = renderState.displayScore;
+    const baseY     = cy;
+    const cooldownW = getStateWeight('COOLDOWN');
+    const bp        = breathPulse(time); // COOLDOWN 진입 시 전체 밝기 호흡
+
+    if (gp < 0.02) return;
+
+    // score 60 초과 시 트렁크 보너스 성장: 60→100 구간에서 추가 높이/굵기 부여
+    // cubic ease-in으로 후반에 극적으로 커지는 느낌
+    const s60raw  = Math.max(0, (score - 60) / 40);           // 0~1 (score 60~100)
+    const s60ease = s60raw * s60raw * s60raw;                  // Cubic ease-in → 후반 급성장
+    const trunkH  = canvas.height * (0.10 + gp * 0.58 + s60ease * 0.22); // 최대 88% 높이
+    const trunkW  = Math.max(18, canvas.height * (0.018 + gp * 0.100 + s60ease * 0.042)); // 최대 굵기
+    const hw      = trunkW / 2;
+    const trunkGp = Math.min(1, gp * 2.5);
+    const armGp   = Math.max(0, Math.min(1, (gp - 0.32) * 3.2));
+
+    const tiltX       = trunkW * 0.10;
+    const growingTopY = baseY - trunkH * trunkGp;
+    const topX        = cx - tiltX;
+
+    // 귀여운 파스텔 홀로그램: 핑크(330°)~민트(160°) 사이를 느리게 왕복
+    // COOLDOWN: 따뜻한 노을빛(30°)으로 이동
+    const cuteOsc = (Math.sin(time * 0.0008) + 1) * 0.5;       // 0~1 왕복
+    const baseHue = 160 + cuteOsc * 170;                        // 민트(160)↔핑크(330)
+    const hue     = baseHue + cooldownW * (38 - baseHue * 0.12);
+    const shimmer = (0.70 + 0.30 * Math.sin(time * 0.0028)) * (1 - cooldownW * 0.42) * bp;
+    // COOLDOWN: 팔이 피곤하게 처짐
+    const cdDroop = cooldownW * 0.30;
+
+    // score 63 이후에도 팔이 계속 커지도록: armGp(등장 타이밍) × armSize(지속 성장)
+    // armSize: score 0→100 선형 증가, 최대 1.55배 (score 100에서 팔이 55% 더 길어짐)
+    const armSize = armGp * (0.80 + gp * 0.75);
+
+    // ── 3개 팔: 클래식 서부 선인장 실루엣 ───────────────────────
+    const armCfg = [
+      {
+        side: -1,
+        jT:   0.42,
+        len:  canvas.height * 0.23 * armSize,
+        h:    canvas.height * (0.26 - cooldownW * 0.06) * armSize,
+        w:    Math.max(11, trunkW * 0.84),
+        sag:  0.64 + cdDroop,
+      },
+      {
+        side: +1,
+        jT:   0.26,
+        len:  canvas.height * 0.16 * armSize,
+        h:    canvas.height * (0.18 - cooldownW * 0.04) * armSize,
+        w:    Math.max(10, trunkW * 0.74),
+        sag:  0.55 + cdDroop,
+      },
+      {
+        side: +1,
+        jT:   0.58,
+        len:  canvas.height * 0.26 * armSize,
+        h:    canvas.height * (0.30 - cooldownW * 0.07) * armSize,
+        w:    Math.max(10, trunkW * 0.64),
+        sag:  0.34 + cdDroop,
+      },
+    ];
+
+    // ── 홀로그램 글리치: ~4.3초 주기로 0.12초간 수평 지터 ──────────
+    const glitchPhase = time % 4300;
+    const inGlitch    = glitchPhase < 120;
+    const glitchX     = inGlitch ? Math.sin(time * 0.9) * 7 : 0;
+
+    // ── 프로젝터 콘: 바닥 발광 원반에서 위로 퍼지는 빛 (식물 뒤) ──
+    {
+      const coneTopY = growingTopY - hw;
+      const coneBotW = trunkW * 0.9;
+      const coneTopW = trunkW * 2.6;
+      const cg = ctx.createLinearGradient(0, baseY, 0, coneTopY);
+      cg.addColorStop(0, ep.glowColor.replace(/[\d.]+\)$/, `${0.16 * trunkGp * bp})`));
+      cg.addColorStop(1, ep.glowColor.replace(/[\d.]+\)$/, '0)'));
+      ctx.save();
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.moveTo(cx - coneBotW, baseY);
+      ctx.lineTo(cx + coneBotW, baseY);
+      ctx.lineTo(cx + coneTopW, coneTopY);
+      ctx.lineTo(cx - coneTopW, coneTopY);
+      ctx.closePath();
+      ctx.fill();
+
+      // 발광 원반 (프로젝터 베이스)
+      const discPulse = 0.7 + 0.3 * Math.sin(time * 0.003);
+      ctx.globalAlpha = 0.55 * trunkGp * discPulse * bp;
+      const dg = ctx.createRadialGradient(cx, baseY + 3, 0, cx, baseY + 3, trunkW * 2.0);
+      dg.addColorStop(0, ep.tipColorA);
+      dg.addColorStop(0.4, ep.glowColor.replace(/[\d.]+\)$/, '0.30)'));
+      dg.addColorStop(1, 'transparent');
+      ctx.fillStyle = dg;
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY + 3, trunkW * 2.0, trunkW * 0.40, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 글리치 지터: 이후 모든 선인장 본체 드로잉에 적용 (drawSucculent 끝에서 restore)
+    ctx.save();
+    ctx.translate(glitchX, 0);
+
+    drawHologramScanlines(cx, baseY - trunkH * 0.5, time, ep);
+
+    // ─── 배럴 트렁크: 통통 귀여운 원기둥 + 얼굴 ───────────────────
+    function drawBarrel(bx, topY, botY, w, alpha) {
+      if (alpha < 0.01) return;
+      const bhw   = w / 2;
+      const bulge = w * 0.28; // 더 볼록하게 (0.13 → 0.28)
+      const h     = botY - topY;
+      ctx.save();
+
+      // 몸통: 더 통통한 배럴 실루엣
+      ctx.beginPath();
+      ctx.moveTo(bx - bhw, botY);
+      ctx.bezierCurveTo(
+        bx - bhw - bulge, botY - h * 0.25,
+        bx - bhw - bulge, botY - h * 0.72,
+        bx - bhw * 0.78, topY
+      );
+      ctx.arc(bx, topY, bhw * 0.78, Math.PI, 0, false);
+      ctx.bezierCurveTo(
+        bx + bhw + bulge, botY - h * 0.72,
+        bx + bhw + bulge, botY - h * 0.25,
+        bx + bhw, botY
+      );
+      ctx.closePath();
+
+      const sat  = 82 - cooldownW * 28;
+      const lCtr = 52 - cooldownW * 18;
+      const bpA  = bp * alpha;
+      const grad = ctx.createLinearGradient(bx - bhw, 0, bx + bhw, 0);
+      grad.addColorStop(0,    `hsla(${hue},          ${sat}%, 14%, ${0.94 * bpA})`);
+      grad.addColorStop(0.20, `hsla(${(hue+22)%360}, ${sat+4}%, 30%, ${0.90 * bpA})`);
+      grad.addColorStop(0.50, `hsla(${(hue+50)%360}, ${sat+10}%, ${lCtr}%, ${0.82 * bpA})`);
+      grad.addColorStop(0.80, `hsla(${(hue+22)%360}, ${sat+4}%, 30%, ${0.90 * bpA})`);
+      grad.addColorStop(1,    `hsla(${hue},          ${sat}%, 14%, ${0.94 * bpA})`);
+      ctx.shadowBlur = ep.glowBlur * 0.60 * bp; ctx.shadowColor = ep.glowColor;
+      ctx.fillStyle  = grad; ctx.fill();
+      ctx.globalAlpha = 0.82 * shimmer * bpA;
+      ctx.strokeStyle = `hsl(${(hue + 65) % 360}, 100%, 85%)`;
+      ctx.lineWidth   = 2.5; ctx.shadowBlur = 18 * bp; ctx.stroke();
+      ctx.restore();
+
+      // ── 귀여운 얼굴: 눈 + 볼터치 ──────────────────────────────
+      if (alpha > 0.3 && trunkGp > 0.5) {
+        const faceY   = topY + h * 0.38;  // 얼굴 세로 위치 (위쪽 1/3)
+        const eyeR    = Math.max(2, bhw * 0.14);
+        const eyeOffX = bhw * 0.38;
+        const blinkT  = Math.sin(time * 0.0012 + 1.5); // 눈 깜빡임 주기
+        const blink   = blinkT > 0.93 ? Math.max(0, 1 - (blinkT - 0.93) * 40) : 1; // 0.93~1.0 구간만 깜빡
+        const eyeA    = bpA * 0.92 * blink;
+
+        ctx.save();
+        ctx.shadowBlur = 10 * bp; ctx.shadowColor = `hsl(${(hue+60)%360}, 100%, 90%)`;
+        ctx.fillStyle  = `hsl(${(hue+60)%360}, 100%, 88%)`;
+
+        // 왼쪽 눈 (하트 모양 근사: 타원 + 위쪽 두 돌기)
+        ctx.globalAlpha = eyeA;
+        ctx.beginPath(); ctx.ellipse(bx - eyeOffX, faceY, eyeR, eyeR * blink, 0, 0, Math.PI * 2); ctx.fill();
+        // 오른쪽 눈
+        ctx.beginPath(); ctx.ellipse(bx + eyeOffX, faceY, eyeR, eyeR * blink, 0, 0, Math.PI * 2); ctx.fill();
+
+        // 볼 블러셔 (핑크 원)
+        ctx.globalAlpha = bpA * 0.30;
+        ctx.fillStyle   = `hsl(340, 100%, 75%)`;
+        ctx.shadowBlur  = 14;
+        ctx.beginPath(); ctx.arc(bx - eyeOffX * 1.6, faceY + eyeR * 2.2, eyeR * 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx + eyeOffX * 1.6, faceY + eyeR * 2.2, eyeR * 1.5, 0, Math.PI * 2); ctx.fill();
+
+        // 작은 미소 (arc)
+        ctx.globalAlpha = eyeA * 0.75;
+        ctx.strokeStyle = `hsl(${(hue+60)%360}, 100%, 88%)`;
+        ctx.lineWidth   = Math.max(1, eyeR * 0.7);
+        ctx.lineCap     = 'round'; ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(bx, faceY + eyeR * 2.8, eyeR * 1.4, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // ─── 유기적 팔: quadratic bezier 곡선 3패스 ─────────────────
+    function drawArmCurve(sx, sy, elbowX, elbowY, tipX, tipY, w, alpha) {
+      if (w < 1 || alpha < 0.01) return;
+      // 수평 구간: 아래로 살짝 처지는 제어점
+      const cp1x = (sx + elbowX) * 0.50, cp1y = sy + w * 0.20;
+      // 수직 구간: 팔꿈치에서 부드럽게 올라가는 제어점
+      const cp2x = elbowX - (tipX - elbowX) * 0.08, cp2y = (elbowY + tipY) * 0.52;
+
+      ctx.save();
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+      function makePath() {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.quadraticCurveTo(cp1x, cp1y, elbowX, elbowY);
+        ctx.quadraticCurveTo(cp2x, cp2y, tipX, tipY);
+      }
+
+      const bpA2 = bp * alpha;
+      // Pass 1 – 바디
+      makePath();
+      ctx.lineWidth   = w;
+      ctx.strokeStyle = `hsla(${hue}, 88%, 20%, ${0.92 * bpA2})`;
+      ctx.shadowBlur  = ep.glowBlur * 0.52 * bp; ctx.shadowColor = ep.glowColor;
+      ctx.globalAlpha = 1; ctx.stroke();
+
+      // Pass 2 – 중앙 하이라이트
+      makePath();
+      ctx.lineWidth   = w * 0.46;
+      ctx.strokeStyle = `hsla(${(hue + 40) % 360}, 95%, 63%, ${0.50 * bpA2})`;
+      ctx.shadowBlur  = 5 * bp; ctx.stroke();
+
+      // Pass 3 – 이색 테두리
+      makePath();
+      ctx.lineWidth   = 2.0;
+      ctx.strokeStyle = `hsl(${(hue + 72) % 360}, 100%, 84%)`;
+      ctx.shadowBlur  = 18 * bp; ctx.globalAlpha = 0.82 * shimmer * bpA2; ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // ─── 꽃봉오리: 귀여운 5-꽃잎 발광 ──────────────────────────
+    function drawBud(x, y, r, alpha) {
+      if (r < 1 || alpha < 0.05) return;
+      const pulseSpeed = 0.006 * (1 - cooldownW * 0.65);
+      const p    = (0.72 + 0.28 * Math.sin(time * pulseSpeed)) * bp;
+      const rot  = time * 0.0008; // 꽃이 천천히 회전
+      ctx.save();
+      ctx.globalAlpha = alpha * p;
+
+      // 꽃잎 8장 — 각자 독립적인 크기·속도·위상으로 팔딱팔딱
+      const petalColors = [
+        `hsl(330, 100%, 78%)`, // 핑크
+        `hsl(280, 100%, 78%)`, // 연보라
+        `hsl(200, 100%, 78%)`, // 하늘
+        `hsl(160, 100%, 72%)`, // 민트
+      ];
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + rot;
+
+        // 각 꽃잎마다 다른 위상·속도 → 파도처럼 순서대로 피었다 오므라듦
+        const petalPhase  = i * (Math.PI * 2 / 8);               // 꽃잎 위상 오프셋
+        const petalFreq   = 0.004 + i * 0.00035;                 // 꽃잎마다 조금씩 다른 맥박 속도
+        const petalPulse  = 0.60 + 0.40 * Math.sin(time * petalFreq + petalPhase);  // 0.20 ~ 1.0
+        // 짝수 꽃잎은 길고(outward), 홀수는 약간 짧아서 안쪽-바깥쪽 교대 느낌
+        const baseLen     = i % 2 === 0 ? 2.2 : 1.65;
+        const dynLen      = baseLen * (0.75 + petalPulse * 0.45); // 길이 동적 변화
+        const dynW        = (i % 2 === 0 ? 0.70 : 0.52) * (0.80 + petalPulse * 0.35);
+        const dynH        = (i % 2 === 0 ? 0.52 : 0.40) * (0.80 + petalPulse * 0.35);
+
+        const px  = x + Math.cos(a) * r * dynLen;
+        const py  = y + Math.sin(a) * r * dynLen;
+        const col = petalColors[i % petalColors.length];
+
+        ctx.fillStyle   = col;
+        ctx.shadowBlur  = (16 + petalPulse * 18) * bp;
+        ctx.shadowColor = col;
+        ctx.globalAlpha = alpha * p * (0.65 + petalPulse * 0.30);
+        ctx.beginPath();
+        ctx.ellipse(px, py, r * dynW, r * dynH, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 중심 노란 orb
+      ctx.globalAlpha = alpha * p;
+      ctx.fillStyle   = `hsl(55, 100%, 82%)`;
+      ctx.shadowBlur  = 28 * bp; ctx.shadowColor = `hsl(55, 100%, 90%)`;
+      ctx.beginPath(); ctx.arc(x, y, r * 0.80, 0, Math.PI * 2); ctx.fill();
+
+      // 반짝이 하이라이트
+      ctx.globalAlpha = alpha * p * 0.6;
+      ctx.fillStyle   = '#fff';
+      ctx.shadowBlur  = 6;
+      ctx.beginPath(); ctx.arc(x - r * 0.28, y - r * 0.28, r * 0.22, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // ─── 서부 영화 귀여운 새 (정수리 포인트) ────────────────────────
+    // 선인장 꼭대기에 앉은 홀로그램 새 — 서부 영화 필수 소품
+    function drawWesternBird(x, y, scale, alpha) {
+      if (alpha < 0.05 || scale < 1) return;
+      // COOLDOWN: 새가 졸음 → 느리게 호흡, 고개가 아래로 처짐
+      const sleepSpeed = 0.004 * (1 - cooldownW * 0.70);
+      const p   = (0.7 + 0.3 * Math.sin(time * sleepSpeed + x * 0.01)) * bp;
+      // COOLDOWN: bob 진폭 증가 + 전체적으로 아래로 처짐 (꾸벅꾸벅)
+      const bobAmp = scale * (0.18 + cooldownW * 0.38);
+      const bob = Math.sin(time * (0.0035 - cooldownW * 0.002)) * bobAmp;
+      const droopY = cooldownW * scale * 0.55; // 아래로 처지는 양
+      const by  = y - scale * 2.2 + bob + droopY;
+
+      ctx.save();
+      ctx.globalAlpha = alpha * p; // p에 이미 bp 포함됨
+      ctx.shadowBlur  = 14 * bp; ctx.shadowColor = ep.orbSpecial;
+      ctx.strokeStyle = ep.orbSpecial;
+      ctx.fillStyle   = ep.orbSpecial;
+      ctx.lineCap     = 'round'; ctx.lineJoin = 'round';
+
+      // 몸통 (작은 타원)
+      const bw = scale * 0.9, bh = scale * 0.6;
+      ctx.beginPath();
+      ctx.ellipse(x, by, bw, bh, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 머리
+      ctx.beginPath();
+      ctx.arc(x + bw * 0.72, by - bh * 0.4, scale * 0.52, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 부리
+      ctx.beginPath();
+      ctx.moveTo(x + bw * 1.18, by - bh * 0.35);
+      ctx.lineTo(x + bw * 1.72, by - bh * 0.28);
+      ctx.lineWidth = scale * 0.22;
+      ctx.stroke();
+
+      // 꼬리 (뒤쪽)
+      ctx.beginPath();
+      ctx.moveTo(x - bw * 0.92, by);
+      ctx.quadraticCurveTo(x - bw * 1.6, by - bh * 0.8, x - bw * 1.8, by - bh * 1.1);
+      ctx.lineWidth = scale * 0.18;
+      ctx.stroke();
+
+      // 날개 (접힌 선)
+      ctx.globalAlpha *= 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x - bw * 0.2, by - bh * 0.1);
+      ctx.quadraticCurveTo(x + bw * 0.3, by + bh * 0.55, x + bw * 0.7, by + bh * 0.1);
+      ctx.lineWidth = scale * 0.28;
+      ctx.stroke();
+
+      // 눈 (반짝)
+      ctx.globalAlpha = alpha * p * 1.2;
+      ctx.shadowBlur  = 8;
+      ctx.fillStyle   = '#fff';
+      ctx.beginPath();
+      ctx.arc(x + bw * 0.88, by - bh * 0.52, scale * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ─── areole 가시 클러스터 (3방향) ───────────────────────────
+    function areole(ex, sy, w, side) {
+      // COOLDOWN: 가시가 천천히 빛을 잃음
+      const pls = (0.48 + 0.52 * Math.sin(time * 0.003 + sy * 0.013)) * bp;
+      ctx.save();
+      ctx.globalAlpha = 0.88 * shimmer * pls;
+      ctx.shadowBlur  = 9; ctx.shadowColor = ep.orbSpecial;
+      ctx.strokeStyle = ep.orbSpecial;
+      ctx.lineWidth   = 0.95; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(ex, sy); ctx.lineTo(ex + side * w * 0.60, sy - w * 0.42); ctx.stroke(); // 위 대각
+      ctx.beginPath(); ctx.moveTo(ex, sy); ctx.lineTo(ex + side * w * 0.72, sy + w * 0.02); ctx.stroke(); // 수평
+      ctx.beginPath(); ctx.moveTo(ex, sy); ctx.lineTo(ex + side * w * 0.52, sy + w * 0.36); ctx.stroke(); // 아래 대각
+      ctx.globalAlpha *= 0.55;
+      ctx.fillStyle = ep.orbSpecial;
+      ctx.beginPath(); ctx.arc(ex, sy, Math.max(1, w * 0.08), 0, Math.PI * 2); ctx.fill(); // areole 중심
+      ctx.restore();
+    }
+
+    // ─── 팔 렌더 (Painter: 트렁크 뒤) ───────────────────────────
+    if (armGp > 0.02) {
+      armCfg.forEach(arm => {
+        const jY     = baseY - trunkH * arm.jT;
+        const startX = cx + arm.side * hw * 0.42 + tiltX * arm.jT;
+        const elbowX = startX + arm.side * arm.len;
+        const elbowY = jY + arm.w * arm.sag;
+        const tipX   = elbowX;
+        const tipY   = jY - arm.h;
+
+        drawArmCurve(startX, jY, elbowX, elbowY, tipX, tipY, arm.w, armGp);
+        drawBud(tipX, tipY, arm.w * 0.55, armGp);
+
+        // 팔 수직 구간 areole
+        const spCnt = Math.max(2, Math.floor(arm.h / (arm.w * 1.4)));
+        for (let i = 0; i < spCnt; i++) {
+          const sy = elbowY - (i + 0.5) * arm.h / spCnt;
+          areole(elbowX - arm.w / 2, sy, arm.w, -1);
+          areole(elbowX + arm.w / 2, sy, arm.w, +1);
+        }
+
+        treeTips.push({ x: tipX, y: tipY - arm.w * 0.5, angle: -Math.PI / 2, gf: armGp, id: 9990 + arm.side * 10 + Math.round(arm.jT * 10), li: 1 });
+      });
+    }
+
+    // ─── 배럴 트렁크 렌더 (팔 위에) ─────────────────────────────
+    drawBarrel(cx + tiltX * 0.45, growingTopY, baseY, trunkW, trunkGp);
+
+    // 트렁크 세로 리브
+    const ribCount = 5;
+    for (let r = 0; r < ribCount; r++) {
+      const rx  = cx - hw + (r + 1) * trunkW / (ribCount + 1);
+      const rY0 = baseY - 8;
+      const rY1 = growingTopY + hw * 0.5;
+      if (rY1 >= rY0) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.17 * shimmer;
+      ctx.strokeStyle = `hsl(${(hue + r * 25) % 360}, 100%, 80%)`;
+      ctx.lineWidth   = 0.8; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.moveTo(rx, rY0); ctx.lineTo(rx, rY1); ctx.stroke();
+      ctx.restore();
+    }
+
+    // 트렁크 areole 가시
+    const spCount = Math.max(3, Math.floor((trunkH * trunkGp) / (trunkW * 1.3)));
+    for (let i = 0; i < spCount; i++) {
+      const sy = baseY - (i + 0.5) * (trunkH * trunkGp) / spCount;
+      areole(cx - hw, sy, trunkW, -1);
+      areole(cx + hw, sy, trunkW, +1);
+    }
+
+    // 트렁크 꼭대기 꽃봉오리 (더 크게: 0.85 → 1.3)
+    drawBud(topX, growingTopY, hw * 1.3, trunkGp);
+
+    // 팔 끝 꽃봉오리도 크게
+    // (armCfg forEach 내에서 이미 drawBud 호출하므로 여기선 트렁크만)
+
+    // 서부 영화 새: 성장 완료 후 정수리 왼쪽에 앉음
+    drawWesternBird(topX - hw * 1.8, growingTopY, hw * 0.65, trunkGp * Math.min(1, (trunkGp - 0.7) * 3.3));
+
+    // ── 하트 파티클: 선인장에서 ♥ 떠오름 ─────────────────────────
+    if (trunkGp > 0.6) {
+      const heartCount = 5;
+      for (let i = 0; i < heartCount; i++) {
+        const seed   = i * 137.5 + time * 0.0004;
+        const hx     = topX + Math.sin(seed * 3.1) * hw * 2.2;
+        const phase  = (seed * 0.17) % 1;               // 0~1 부유 주기
+        const hy     = growingTopY - phase * canvas.height * 0.22;
+        const hAlpha = (1 - phase) * trunkGp * 0.65 * bp;
+        const hSize  = Math.max(1.5, hw * 0.22 * (1 - phase * 0.5));
+        if (hAlpha < 0.02) continue;
+        const heartHue = 330 + i * 22;
+
+        ctx.save();
+        ctx.globalAlpha = hAlpha;
+        ctx.fillStyle   = `hsl(${heartHue % 360}, 100%, 80%)`;
+        ctx.shadowBlur  = 12; ctx.shadowColor = ctx.fillStyle;
+        // 하트: 두 원 + 역삼각형 근사
+        ctx.beginPath();
+        ctx.arc(hx - hSize * 0.5, hy - hSize * 0.25, hSize * 0.55, Math.PI, 0);
+        ctx.arc(hx + hSize * 0.5, hy - hSize * 0.25, hSize * 0.55, Math.PI, 0);
+        ctx.lineTo(hx, hy + hSize * 1.1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // ── 데이터 링: 식물 주위를 도는 발광 타원 궤도 2개 ──────────────
+    if (trunkGp > 0.4) {
+      for (let ri = 0; ri < 2; ri++) {
+        const ringY  = baseY - trunkH * (0.35 + ri * 0.30) * trunkGp;
+        const ringRx = trunkW * (1.7 + ri * 0.5);
+        const ringRy = ringRx * 0.20;
+        const wobble = Math.sin(time * 0.0012 + ri * 2.5) * 0.10;
+        const ringA  = (0.30 + 0.18 * Math.sin(time * 0.0026 + ri * 3)) * trunkGp * bp;
+
+        ctx.save();
+        ctx.translate(cx, ringY);
+        ctx.rotate(wobble);
+        ctx.globalAlpha = ringA;
+        ctx.strokeStyle = ri === 0 ? ep.tipColorA : ep.tipColorB;
+        ctx.lineWidth   = 1.1;
+        ctx.setLineDash([14, 9]);                       // 데이터 스트림 느낌의 점선
+        ctx.lineDashOffset = -time * 0.02 * (ri === 0 ? 1 : -1); // 서로 반대로 회전
+        ctx.beginPath();
+        ctx.ellipse(0, 0, ringRx, ringRy, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // ── 글리치 수평 바: 글리치 순간에만 식물 위로 노이즈 밴드 ──────
+    if (inGlitch) {
+      ctx.save();
+      for (let gi = 0; gi < 3; gi++) {
+        const gy = baseY - trunkH * seededRandom(Math.floor(time / 40) * 3 + gi) * trunkGp;
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle   = ep.tipColorA;
+        ctx.fillRect(cx - trunkW * 2.5, gy, trunkW * 5, 2 + seededRandom(gi * 7) * 3);
+      }
+      ctx.restore();
+    }
+
+    ctx.restore(); // 글리치 지터 translate 해제
+
+    treeTips.push({ x: topX, y: growingTopY - hw * 0.6, angle: -Math.PI / 2, gf: trunkGp, id: 9999, li: 0 });
   }
 
   // ─── 배경·대기 효과 ──────────────────────────────────────────
@@ -560,16 +1601,149 @@ const Renderer = (() => {
       ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // 별: 260개, 더 밝고 뚜렷하게 반짝임
-    for (let i = 0; i < 260; i++) {
+    // 별: 작은 별 223개는 정적 캐시 레이어 1회 드로우 (성능 최적화)
+    if (starLayer) ctx.drawImage(starLayer, 0, 0);
+
+    // 큰 별 37개만 매 프레임 트윙클 (기존 260개 → 37개로 드로우콜 86% 감소)
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 260; i += 7) {
       const sx = Math.abs(Math.sin(i * 127.1)) * canvas.width;
       const sy = Math.abs(Math.sin(i * 311.7)) * canvas.height;
       const tw = 0.3 + Math.abs(Math.sin(time * 0.0018 + i * 0.7)) * 0.7;
-      const sz = i % 7 === 0 ? 1.6 : 0.9; // 7개 중 1개는 큰 별
-      ctx.globalAlpha = tw * 0.08; ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.arc(sx, sy, sz, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = tw * 0.10;
+      ctx.beginPath(); ctx.arc(sx, sy, 1.6, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ─── 공통 분위기 레이어 (전 테마 적용, 3배 강화 버전) ─────────────
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * 바닥 반사: 식물 영역을 수직 반전 복사해 유리 바닥에 비친 효과
+   * 캔버스 자신을 drawImage로 재사용 → 식물 재드로우 없이 드로우콜 1회
+   */
+  function drawGroundReflection(ep) {
+    const baseY = Math.round(canvas.height * 0.88);
+    const reflH = Math.round(canvas.height * 0.11);
+    if (reflH < 8) return;
+
+    const fx    = window.SPEC.FX || {};
+    // 연꽃은 수면이므로 반사 더 선명하게
+    const alpha = currentTheme === 'NEON_LOTUS' ? 0.60 : (fx.REFLECTION_ALPHA || 0.45);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(0, baseY * 2);
+    ctx.scale(1, -1);
+    // baseY 바로 위 영역을 그대로 아래로 반전 복사
+    ctx.drawImage(canvas, 0, baseY - reflH, canvas.width, reflH,
+                          0, baseY - reflH, canvas.width, reflH);
+    ctx.restore();
+
+    // 아래로 갈수록 배경색에 잠기는 페이드 마스크
+    const m = ctx.createLinearGradient(0, baseY, 0, baseY + reflH);
+    m.addColorStop(0, hexToRgba(ep.bgEdge, 0.10));
+    m.addColorStop(1, hexToRgba(ep.bgEdge, 0.95));
+    ctx.fillStyle = m;
+    ctx.fillRect(0, baseY, canvas.width, reflH);
+  }
+
+  /**
+   * 반딧불: 식물 주변을 부유하는 발광 입자 (코어+글로우 2패스, shadowBlur 미사용)
+   * 좌표는 time 기반 stateless 계산 → 별도 배열 관리 불필요
+   */
+  function drawFireflies(time, ep) {
+    const fx    = window.SPEC.FX || {};
+    const count = fx.FIREFLY_COUNT || 66;
+    const cx    = canvas.width / 2;
+    const baseY = canvas.height * 0.88;
+    const cdW   = getStateWeight('COOLDOWN');
+
+    ctx.save();
+    for (let i = 0; i < count; i++) {
+      const s1 = seededRandom(i * 7 + 1);
+      const s2 = seededRandom(i * 13 + 5);
+      const s3 = seededRandom(i * 29 + 11);
+
+      const orbitW = canvas.width * (0.06 + s1 * 0.34);
+      const speed  = (0.00010 + s2 * 0.00018) * (1 - cdW * 0.5); // COOLDOWN: 느리게
+      const ph     = i * 2.39;
+
+      const x  = cx + Math.sin(time * speed + ph) * orbitW;
+      const y  = baseY - canvas.height * (0.06 + s3 * 0.58)
+                 + Math.sin(time * speed * 1.7 + ph * 1.3) * 34;
+      const tw = 0.5 + 0.5 * Math.sin(time * 0.002 + i * 1.3);
+      const a  = tw * 0.55;
+      if (a < 0.04) continue;
+      const r  = 1.1 + s2 * 1.9;
+
+      // 글로우 패스 (큰 원, 낮은 알파)
+      ctx.globalAlpha = a * 0.22;
+      ctx.fillStyle   = ep.orbColor;
+      ctx.beginPath(); ctx.arc(x, y, r * 3.4, 0, Math.PI * 2); ctx.fill();
+
+      // 코어 패스
+      ctx.globalAlpha = a;
+      ctx.fillStyle   = i % 5 === 0 ? ep.orbSpecial : ep.orbAltColor;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 갓레이: 화면 상단에서 내려오는 부채꼴 빛줄기 (score 비례 강도)
+   */
+  function drawGodRays(time, ep) {
+    const sr = renderState.displayScore / 100;
+    if (sr < 0.08) return;
+    const fx = window.SPEC.FX || {};
+    const n  = fx.GODRAY_COUNT || 9;
+    const cx = canvas.width / 2;
+
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const off    = i - (n - 1) / 2;
+      const sway   = Math.sin(time * 0.00010 + i * 1.9) * canvas.width * 0.04;
+      const topX   = cx + off * canvas.width * 0.105 + sway;
+      const spread = canvas.width * (0.045 + seededRandom(i * 13 + 4) * 0.05);
+      const botX   = topX + off * canvas.width * 0.055;
+      const pulse  = 0.6 + 0.4 * Math.sin(time * 0.0006 + i * 2.2);
+      const a      = 0.085 * sr * pulse;
+
+      const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      g.addColorStop(0,    ep.glowColor.replace(/[\d.]+\)$/, `${a})`));
+      g.addColorStop(0.75, ep.glowColor.replace(/[\d.]+\)$/, '0)'));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(topX - 9, -12);
+      ctx.lineTo(topX + 9, -12);
+      ctx.lineTo(botX + spread, canvas.height);
+      ctx.lineTo(botX - spread, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 작은 별들을 오프스크린 캔버스에 미리 렌더 (init·resize 시 1회 호출)
+   * 매 프레임 sin() 계산 + arc 드로우 260회를 drawImage 1회로 대체
+   */
+  function buildStarLayer() {
+    starLayer        = document.createElement('canvas');
+    starLayer.width  = canvas.width;
+    starLayer.height = canvas.height;
+    const sctx = starLayer.getContext('2d');
+    sctx.fillStyle   = '#ffffff';
+    sctx.globalAlpha = 0.055; // 트윙클 평균 밝기로 고정
+    for (let i = 0; i < 260; i++) {
+      if (i % 7 === 0) continue; // 큰 별은 메인 루프에서 트윙클 렌더
+      const sx = Math.abs(Math.sin(i * 127.1)) * starLayer.width;
+      const sy = Math.abs(Math.sin(i * 311.7)) * starLayer.height;
+      sctx.beginPath(); sctx.arc(sx, sy, 0.9, 0, Math.PI * 2); sctx.fill();
+    }
   }
 
   // 오로라: 4개 레이어, 기존 대비 3배 강도
@@ -829,32 +2003,135 @@ const Renderer = (() => {
     }
   }
 
+  // ─── 가상 카메라 업데이트 ─────────────────────────────────────
+  /**
+   * 테마별로 식물 예상 높이를 계산해 필요한 줌 스케일을 구하고
+   * 스프링 물리로 cam.scale / cam.panY를 부드럽게 수렴시킨다.
+   *
+   * 피벗 포인트: 식물 뿌리(canvas.height * 0.88) 고정
+   *   → 줌아웃해도 식물 뿌리가 화면 아래 같은 위치에 유지됨
+   */
+  function updateCamera() {
+    const sr = Math.max(0, Math.min(1, renderState.displayScore / 100));
+    let targetScale;
+
+    switch (currentTheme) {
+      case 'NEON_LOTUS':
+        // 연꽃: 점수 25% 이후 빠르게 줌아웃 (꽃잎 반지름이 크게 성장)
+        targetScale = Math.max(0.48, 1.0 - Math.max(0, sr - 0.22) * 0.68);
+        break;
+      case 'DEEP_VINE':
+        // 덩굴: canvas.height 85%까지 자람
+        targetScale = Math.max(0.64, 1.0 - Math.max(0, sr - 0.30) * 0.50);
+        break;
+      case 'HOLOGRAM_SUCCULENT':
+        // 선인장: 줌아웃 완화 (0.55→0.28) → score 60 이후 성장이 화면에서 실제로 보임
+        targetScale = Math.max(0.70, 1.0 - Math.max(0, sr - 0.22) * 0.28);
+        break;
+      default: // GLOWING_TREE (2 그루)
+        // 트렁크 + 가지 = 대략 trunkH * 3 수직 높이
+        targetScale = Math.max(0.55, 1.0 - Math.max(0, sr - 0.28) * 0.62);
+        break;
+    }
+
+    // 식물이 클수록 살짝 위로 패닝 → 화면 상단도 보임
+    const targetPanY = -canvas.height * 0.06 * sr;
+
+    // 스프링 보간 (k=0.032, d=0.84)
+    cam.scaleVel += (targetScale - cam.scale) * 0.032;
+    cam.scaleVel *= 0.84;
+    cam.scale    += cam.scaleVel;
+    cam.scale     = Math.max(0.40, Math.min(1.08, cam.scale));
+
+    cam.panYVel += (targetPanY - cam.panY) * 0.032;
+    cam.panYVel *= 0.84;
+    cam.panY    += cam.panYVel;
+  }
+
+  /**
+   * ctx 에 카메라 변환 적용 (save() 후 호출, restore()로 해제)
+   *
+   * 수식 증명:
+   *   피벗 py = canvas.height * 0.88 (식물 뿌리)
+   *   screen_y(뿌리) = canvasMid + (py - canvasMid)*(1-s) + s*(py-canvasMid) + panY
+   *                  = py + panY   → 뿌리 위치 고정(panY만큼만 이동)
+   */
+  function applyCameraTransform() {
+    const s       = cam.scale;
+    const midX    = canvas.width  / 2;
+    const midY    = canvas.height / 2;
+    const baseY   = canvas.height * 0.88;          // 식물 뿌리
+    const fixedOY = (baseY - midY) * (1 - s);      // 뿌리를 고정하는 보정값
+
+    ctx.translate(midX, midY + fixedOY + cam.panY);
+    ctx.scale(s, s);
+    ctx.translate(-midX, -midY);
+  }
+
   // burst 파티클 주기적 방출 (씨앗 보충은 updateSeeds 내부에서 자체 관리)
   function spawnAmbient(ep) {
     const grown = treeTips.filter(t => t.gf > 0.8);
     if (grown.length === 0) return;
-    if (currentState === 'OVERHEAT' && Math.random() < 0.32) spawnParticles(3, 'focus', ep);
-    else if (currentState === 'OPTIMAL' && Math.random() < 0.10) spawnParticles(1, 'focus', ep);
-    else if (currentState === 'COOLDOWN' && Math.random() < 0.05) spawnParticles(1, 'focus', ep);
+    if (currentState === 'OVERHEAT' && Math.random() < 0.78)       spawnParticles(8, 'focus', ep);
+    else if (currentState === 'OPTIMAL' && Math.random() < 0.45)   spawnParticles(5, 'focus', ep);
+    else if (currentState === 'COOLDOWN' && Math.random() < 0.14)  spawnParticles(2, 'focus', ep);
+    else if (currentState === 'DORMANT' && Math.random() < 0.10)   spawnParticles(2, 'focus', ep);
+
+    // 잎 끝에서 꽃가루처럼 흩날리는 추가 파티클 (OPTIMAL·OVERHEAT)
+    if ((currentState === 'OPTIMAL' || currentState === 'OVERHEAT') && Math.random() < 0.30) {
+      const src = grown[Math.floor(Math.random() * grown.length)];
+      spawnSeed(src.x, src.y, ep);
+    }
   }
 
   // ─── 메인 루프 ───────────────────────────────────────────────
   function animate() {
     const time = Date.now();
     updateGrowthProgress();
+    updateCamera();                          // 카메라 스프링 업데이트
     const ep = buildEffectivePalette();
 
+    // ── 배경·대기 효과: 항상 풀스크린 (카메라 미적용) ──────────
     drawBackground(time, ep);
     drawAurora(time, ep);
+    drawGodRays(time, ep);          // 빛줄기: 식물 뒤 배경 레이어
+
+    // ── 식물·씨앗·파티클: 카메라 변환 안에서 렌더 ──────────────
+    ctx.save();
+    applyCameraTransform();
     drawTree(time, ep);
-    // 씨앗은 잎 위에, burst 파티클보다 아래 레이어
+    updateFallingLeaves(time, ep);  // 낙엽 (글로잉나무 전용, 월드 좌표)
     updateSeeds(time, ep);
+    updateParticles();
+    ctx.restore();
+
+    // ── 공통 분위기 레이어: 화면 공간 ────────────────────────────
+    drawGroundReflection(ep);       // 식물이 그려진 후 캔버스 반전 복사
+    drawFireflies(time, ep);
+
+    // ── 화면 공간 오버레이: 카메라 미적용 (항상 엣지에 고정) ────
     drawOverheatEdge(time, ep);
     drawCooldownVeil(time, ep);
     drawVignette();
     spawnAmbient(ep);
-    updateParticles();
     requestAnimationFrame(animate);
+  }
+
+  /**
+   * 테마 전환: 팔레트를 교체하고 색상 Lerp 전환 시작
+   * localStorage 에 저장하여 새로고침 후에도 유지
+   */
+  function setTheme(name) {
+    if (!THEMES || !THEMES[name]) {
+      console.warn(`[D-Garden] 알 수 없는 테마: ${name}`);
+      return;
+    }
+    prevPalette  = buildEffectivePalette();   // 현재 색상 스냅샷
+    currentTheme = name;
+    PALETTE      = THEMES[name];
+    currPalette  = PALETTE[currentState];
+    transitionT  = 0;
+    try { localStorage.setItem('d-garden-theme', name); } catch (_) {}
   }
 
   function init(canvasEl) {
@@ -862,7 +2139,18 @@ const Renderer = (() => {
       console.error('[D-Garden] SPEC.PALETTE 로드 실패. spec.json을 확인하세요.');
       return;
     }
-    PALETTE = window.SPEC.PALETTE;
+
+    // GLOWING_TREE = 기존 PALETTE 재사용 (spec.json 중복 없음)
+    THEMES = window.SPEC.THEMES || {};
+    THEMES.GLOWING_TREE = window.SPEC.PALETTE;
+
+    // localStorage에 저장된 테마 복원
+    try {
+      const saved = localStorage.getItem('d-garden-theme');
+      if (saved && THEMES[saved]) currentTheme = saved;
+    } catch (_) {}
+
+    PALETTE     = THEMES[currentTheme];
     prevPalette = PALETTE.OPTIMAL;
     currPalette = PALETTE.OPTIMAL;
 
@@ -874,8 +2162,10 @@ const Renderer = (() => {
     canvas = canvasEl; ctx = canvas.getContext('2d');
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
+    buildStarLayer();
     window.addEventListener('resize', () => {
       canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+      buildStarLayer(); // 캔버스 크기 변경 시 별 레이어 재생성
     });
     lastAnimTime = Date.now();
     animate();
@@ -905,5 +2195,5 @@ const Renderer = (() => {
     return PALETTE ? (PALETTE[state] || PALETTE.OPTIMAL).orbColor : '#00ffaa';
   }
 
-  return { init, update, spawnParticles, energizeSeeds, getBadgeColor, triggerTipGrowth };
+  return { init, update, spawnParticles, energizeSeeds, getBadgeColor, triggerTipGrowth, setTheme };
 })();

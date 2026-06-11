@@ -38,9 +38,11 @@ const RealtimeClient = (() => {
     const key  = spec.SUPABASE_ANON_KEY;
     const name = spec.REALTIME_CHANNEL || 'd-garden-crowd';
 
-    // 자격증명 미설정 → 로컬 단독 시연 모드로 조용히 종료
+    // 자격증명 미설정 → 상태 표시 숨기고 조용히 종료 (발표 화면에 노출 안 됨)
     if (!url || url.startsWith('YOUR_')) {
-      setStatus(false, '● OFFLINE (spec.json 설정 필요)');
+      if (_statusEl || (_statusEl = document.getElementById('realtime-status'))) {
+        _statusEl.style.display = 'none';
+      }
       return;
     }
 
