@@ -314,11 +314,12 @@ const Renderer = (() => {
 
     // ── 잎 3중 주파수 Flutter ────────────────────────────────────
     const leafPhase   = x * 0.011 + y * 0.009;
-    // 펄럭임 진폭 — 과하면 시선을 빼앗아 집중을 방해하므로 spec에서 절제된 값으로 관리
+    // 펄럭임 진폭·속도 — 과하면 시선을 빼앗아 집중을 방해하므로 spec에서 절제된 값으로 관리
     const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.035) * (1 - cooldownW * 0.82);
-    const flt1  = Math.sin(time * 0.0042 + leafPhase)        * 0.55;
-    const flt2  = Math.sin(time * 0.0098 + leafPhase * 1.55) * 0.28;
-    const flt3  = Math.sin(time * 0.0200 + leafPhase * 0.80) * 0.17;
+    const fs    = window.SPEC.LEAF_FLUTTER_SPEED || 0.65;
+    const flt1  = Math.sin(time * 0.0042 * fs + leafPhase)        * 0.55;
+    const flt2  = Math.sin(time * 0.0098 * fs + leafPhase * 1.55) * 0.28;
+    const flt3  = Math.sin(time * 0.0200 * fs + leafPhase * 0.80) * 0.17;
     const flutter = flutterBase * (flt1 + flt2 + flt3);
 
     const len = targetSize * eased;
