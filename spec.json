@@ -11,6 +11,7 @@
   "LEAF_FLUTTER_AMPLITUDE": 0.035,
   "LEAF_FLUTTER_SPEED": 0.65,
   "TRUNK_OVERHEAT_BOOST": 0.55,
+  "SEED_MAX": 40,
   "MIN_SCORE": 0,
   "MAX_SCORE": 100,
   "IDLE_DECREASE_PER_SEC": -0.5,
@@ -25,7 +26,8 @@
   "TYPO_DECAY_KEY_WINDOW": 120,
   "FX": {
     "REFLECTION_ALPHA": 0.45,
-    "FIREFLY_COUNT": 66,
+    "FIREFLY_COUNT": 40,
+    "AMBIENT_ALPHA": 0.75,
     "GODRAY_COUNT": 9,
     "GODRAY_ALPHA": 0.13,
     "FALLING_LEAF_MAX": 8,
@@ -59,7 +61,7 @@
       "tipColorB":   "#c8c8e0",
       "orbColor":    "#b8b8d8",
       "orbAltColor": "#e0e0f5",
-      "orbSpecial":  "#ffffff",
+      "orbSpecial":  "#f0f0ff",
       "glowColor":   "rgba(110,110,175,0.55)",
       "glowBlur":    24,
       "spread":      0.50,
@@ -78,7 +80,7 @@
       "tipColorB":   "#88ffee",
       "orbColor":    "#00ffcc",
       "orbAltColor": "#88ffee",
-      "orbSpecial":  "#ffffff",
+      "orbSpecial":  "#eafff5",
       "glowColor":   "rgba(0,245,175,0.70)",
       "glowBlur":    52,
       "spread":      0.42,
@@ -97,7 +99,7 @@
       "tipColorB":   "#4488ff",
       "orbColor":    "#ff44cc",
       "orbAltColor": "#4488ff",
-      "orbSpecial":  "#ffffff",
+      "orbSpecial":  "#ffeaff",
       "glowColor":   "rgba(220,0,200,0.80)",
       "glowBlur":    68,
       "spread":      0.62,
@@ -147,7 +149,7 @@
           { "t": 1.0,  "color": "#ffee44" }
         ],
         "tipColorA": "#ff44cc", "tipColorB": "#ffee44",
-        "orbColor": "#ff55cc", "orbAltColor": "#ffcc44", "orbSpecial": "#ffffff",
+        "orbColor": "#ff55cc", "orbAltColor": "#ffcc44", "orbSpecial": "#fff3dd",
         "glowColor": "rgba(255,60,150,0.70)", "glowBlur": 55, "spread": 0.50,
         "bgCenter": "#1a0015", "bgEdge": "#060004"
       },
@@ -160,7 +162,7 @@
           { "t": 1.0,  "color": "#ffee00" }
         ],
         "tipColorA": "#ff0066", "tipColorB": "#ffee00",
-        "orbColor": "#ff0066", "orbAltColor": "#ff8800", "orbSpecial": "#ffffff",
+        "orbColor": "#ff0066", "orbAltColor": "#ff8800", "orbSpecial": "#ffe9dd",
         "glowColor": "rgba(255,0,80,0.85)", "glowBlur": 70, "spread": 0.62,
         "bgCenter": "#1a0008", "bgEdge": "#070002"
       },
@@ -213,7 +215,7 @@
           { "t": 1.0,  "color": "#aaeeff" }
         ],
         "tipColorA": "#0088ff", "tipColorB": "#aaeeff",
-        "orbColor": "#0099ff", "orbAltColor": "#55ddff", "orbSpecial": "#ffffff",
+        "orbColor": "#0099ff", "orbAltColor": "#55ddff", "orbSpecial": "#e8f6ff",
         "glowColor": "rgba(0,140,255,0.80)", "glowBlur": 60, "spread": 0.55,
         "bgCenter": "#000820", "bgEdge": "#000308"
       },
@@ -253,7 +255,7 @@
           { "t": 1.0,  "color": "#ffffff" }
         ],
         "tipColorA": "#00ccff", "tipColorB": "#ff00ff",
-        "orbColor": "#00ffff", "orbAltColor": "#ff00ff", "orbSpecial": "#ffffff",
+        "orbColor": "#00ffff", "orbAltColor": "#ff00ff", "orbSpecial": "#f0fbff",
         "glowColor": "rgba(0,200,255,0.65)", "glowBlur": 50, "spread": 0.48,
         "bgCenter": "#050510", "bgEdge": "#020206"
       },
@@ -266,7 +268,7 @@
           { "t": 1.0,  "color": "#ffffff" }
         ],
         "tipColorA": "#ff00ff", "tipColorB": "#ffff00",
-        "orbColor": "#ff00ff", "orbAltColor": "#ffcc00", "orbSpecial": "#ffffff",
+        "orbColor": "#ff00ff", "orbAltColor": "#ffcc00", "orbSpecial": "#fdf0ff",
         "glowColor": "rgba(200,0,255,0.80)", "glowBlur": 65, "spread": 0.60,
         "bgCenter": "#090510", "bgEdge": "#040207"
       },

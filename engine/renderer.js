@@ -927,7 +927,7 @@ const Renderer = (() => {
       const x   = cx + Math.cos(ang) * rr;
       const y   = lotusCY + Math.sin(ang) * rr * 0.38 + Math.sin(time * 0.0012 + i * 1.9) * 9;
       const tw  = 0.5 + 0.5 * Math.sin(time * 0.0025 + i * 2.1);
-      ctx.globalAlpha = (0.30 + tw * 0.45) * sr2;
+      ctx.globalAlpha = (0.30 + tw * 0.45) * sr2 * (fx.AMBIENT_ALPHA || 0.75);
       ctx.fillStyle   = i % 3 === 0 ? ep.orbSpecial : ep.orbAltColor;
       ctx.shadowBlur  = 10; ctx.shadowColor = ep.glowColor;
       ctx.beginPath(); ctx.arc(x, y, 1.2 + tw * 1.6, 0, Math.PI * 2); ctx.fill();
@@ -955,7 +955,7 @@ const Renderer = (() => {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rot);
-      ctx.globalAlpha = 0.55;
+      ctx.globalAlpha = 0.55 * (fx.AMBIENT_ALPHA || 0.75);
       ctx.fillStyle   = i % 2 === 0 ? ep.tipColorA : ep.tipColorB;
       ctx.beginPath();
       ctx.ellipse(0, 0, size, size * 0.38, 0, 0, Math.PI * 2);
@@ -1813,7 +1813,7 @@ const Renderer = (() => {
       const y  = baseY - canvas.height * (0.06 + s3 * 0.58)
                  + Math.sin(time * speed * 1.7 + ph * 1.3) * 34;
       const tw = 0.5 + 0.5 * Math.sin(time * 0.002 + i * 1.3);
-      const a  = tw * 0.55;
+      const a  = tw * 0.55 * (fx.AMBIENT_ALPHA || 0.75);
       if (a < 0.04) continue;
       const r  = 1.1 + s2 * 1.9;
 
@@ -1990,7 +1990,7 @@ const Renderer = (() => {
   // - 에너자이즈(Energized) 씨앗: 에너지를 받아 급성장 후 스르륵 소멸
 
   let seeds = [];
-  const SEED_MAX = 60; // 화면에 상주하는 최대 씨앗 수
+  const SEED_MAX = window.SPEC.SEED_MAX || 40; // 화면에 상주하는 최대 씨앗 수
 
   // 씨앗 1개 생성
   function spawnSeed(energized, ep) {
@@ -2086,20 +2086,28 @@ const Renderer = (() => {
       const seedBreath = 1 - cdW + cdW * (0.55 + 0.45 * Math.sin(Date.now() * 0.0018 + s.phase * 2.3));
 
       const displaySize  = Math.max(0.3, s.baseSize * pulse * energyScale);
-      const displayAlpha = Math.min(1, s.baseAlpha * s.life * energyAlpha * seedBreath);
+      // 주변 씨앗은 앰비언트 감광 적용 — 주인공(식물)보다 밝게 경쟁하지 않도록
+      const dimA         = s.energized ? 1 : ((window.SPEC.FX || {}).AMBIENT_ALPHA || 0.75);
+      const displayAlpha = Math.min(1, s.baseAlpha * s.life * energyAlpha * seedBreath) * dimA;
 
       ctx.save();
       ctx.globalAlpha = displayAlpha;
       ctx.shadowBlur  = displaySize * (s.energized ? 18 : (4 + cdW * 6)); // COOLDOWN에서 부드러운 후광
       ctx.shadowColor = s.color;
       ctx.fillStyle   = s.color;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, displaySize, 0, Math.PI * 2);
-      ctx.fill();
+      if (currentTheme === 'HOLOGRAM_SUCCULENT') {
+        // 픽셀 스파클: 홀로그램 세계관(직선·디지털)에 맞춘 사각 점멸 — 유기체 섬모와 충돌 방지
+        const pxSz = displaySize * 1.7;
+        ctx.fillRect(s.x - pxSz / 2, s.y - pxSz / 2, pxSz, pxSz);
+      } else {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, displaySize, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // ── 우드스프라이트 섬모: 코어 아래로 늘어지는 가는 발광 가닥 (해파리형) ──
-      // 에너자이즈(폭발) 상태는 제외 — 떠다니는 주변 씨앗만 신비롭게
-      if (!s.energized) {
+      // 에너자이즈(폭발) 상태와 홀로그램다육이(픽셀 스파클) 테마는 제외
+      if (!s.energized && currentTheme !== 'HOLOGRAM_SUCCULENT') {
         const cilN = 4;
         ctx.lineWidth   = 0.6;
         ctx.strokeStyle = s.color;
