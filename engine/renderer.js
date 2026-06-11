@@ -314,7 +314,8 @@ const Renderer = (() => {
 
     // ── 잎 3중 주파수 Flutter ────────────────────────────────────
     const leafPhase   = x * 0.011 + y * 0.009;
-    const flutterBase = 0.10 * (1 - cooldownW * 0.82);
+    // 펄럭임 진폭 — 과하면 시선을 빼앗아 집중을 방해하므로 spec에서 절제된 값으로 관리
+    const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.035) * (1 - cooldownW * 0.82);
     const flt1  = Math.sin(time * 0.0042 + leafPhase)        * 0.55;
     const flt2  = Math.sin(time * 0.0098 + leafPhase * 1.55) * 0.28;
     const flt3  = Math.sin(time * 0.0200 + leafPhase * 0.80) * 0.17;
@@ -382,14 +383,22 @@ const Renderer = (() => {
   }
 
   function drawAllLeaves(time, ep) {
-    const BASE_LEAF_SIZE = (window.SPEC.BASE_LEAF_SIZE || 10) * 4.2 * (1 + renderState.displayScore * 0.008);
+    const BASE_LEAF_SIZE = (window.SPEC.BASE_LEAF_SIZE || 10) * (window.SPEC.LEAF_SIZE_SCALE || 3.2) * (1 + renderState.displayScore * 0.008);
+    const SIZE_VARIANCE  = window.SPEC.LEAF_SIZE_VARIANCE || 2.4;
 
     const cooldownW      = getStateWeight('COOLDOWN');
     const cooldownShrink = 1 - cooldownW * 0.55;
     const droop          = cooldownW * 0.38;
 
-    // 성능 안전망: treeTips가 너무 많으면 앞 60개만 처리
-    const tips = treeTips.length > 60 ? treeTips.slice(0, 60) : treeTips;
+    // 성능 안전망: treeTips 상한 — slice(0,N)은 재귀 순서상 왼쪽 가지만 남아
+    // 잎이 한쪽에 몰리므로, 전체 배열에서 균등 간격으로 샘플링한다
+    const maxTips = window.SPEC.LEAF_MAX_TIPS || 60;
+    let tips = treeTips;
+    if (treeTips.length > maxTips) {
+      const step = treeTips.length / maxTips;
+      tips = [];
+      for (let i = 0; i < maxTips; i++) tips.push(treeTips[Math.floor(i * step)]);
+    }
     tips.forEach((tip) => {
       // ── 게이트: 가지 25% 이상 자라면 잎 출현 허용 (score ~40 목표) ──
       if (tip.gf < 0.25) return;
@@ -404,8 +413,8 @@ const Renderer = (() => {
 
       const leafSeed    = Math.sin(tip.x * 12.3 + tip.y * 45.6);
       const absS        = Math.abs(leafSeed);
-      // 크기 범위: 1.0x ~ 4.2x BASE_LEAF_SIZE → 다양한 잎 크기
-      const maxLeafSize = BASE_LEAF_SIZE * (1.0 + absS * 3.2);
+      // 크기 범위: 1.0x ~ (1+VARIANCE)x BASE_LEAF_SIZE → 다양한 잎 크기
+      const maxLeafSize = BASE_LEAF_SIZE * (1.0 + absS * SIZE_VARIANCE);
       const growthSpeed = 1.4 + absS * 1.8;
 
       // gf: 중간 가지 팁은 부모 gf에 비례해서 잎 크기 점진적 증가 (처음부터 꽉 찬 잎 방지)
