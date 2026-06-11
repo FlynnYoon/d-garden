@@ -36,31 +36,31 @@
 
 ---
 
-## M3 — Supabase Realtime 관객 인터랙션 ⚠️ 코드 완성 / 자격증명 미입력
-> 코드는 모두 준비됨. Supabase 콘솔에서 키 발급만 남음
+## M3 — Supabase Realtime 관객 인터랙션 ✅ 완료 (2026-06-11)
+> 기존 Supabase 프로젝트 재활용 (Broadcast만 사용 — DB 무접촉이라 안전)
 
 | 항목 | 상태 | 비고 |
 |------|------|------|
 | `engine/realtime.js` 수신 모듈 | ✅ | broadcast 구독, 상태 표시 |
 | `audience.html` 관객 모바일 페이지 | ✅ | 메시지 전송, 칩 단축어, 토스트 알림 |
 | `vercel.json` 배포 설정 | ✅ | `/audience` 라우팅, 캐시 무효화 |
-| Supabase 프로젝트 생성 | ❌ **수동 필요** | supabase.com 에서 프로젝트 생성 |
-| `spec.json` 키 입력 | ❌ **수동 필요** | `SUPABASE_URL`, `SUPABASE_ANON_KEY` 교체 |
+| Supabase 프로젝트 | ✅ | 기존 프로젝트 재활용 (`ypzmxpbbaxmzctvlkhow`) |
+| `spec.json` 키 입력 | ✅ | URL + `sb_publishable_` 신형 키 입력, Broadcast 왕복 테스트 PASS |
 
 ---
 
-## M4 — 완성 및 발표 준비 🔶 부분 완료
-> 해커톤 발표장 실전 투입 전 남은 항목
+## M4 — 완성 및 발표 준비 🔶 리허설만 남음 (2026-06-11)
+> 배포 완료: **https://d-garden.vercel.app** (관객: `/audience`)
 
 | 항목 | 상태 | 비고 |
 |------|------|------|
 | Vercel 배포 설정 (`vercel.json`) | ✅ | 설정 파일 완성 |
-| GitHub 레포 + 첫 커밋 | ✅ | `474ebfc` — D-Garden v1.0 |
-| 미배포 변경사항 스테이징 | ✅ 커밋 완료 | `50ebde5`(테마+에이전트), `f896549`(잎 수정) — 배포만 대기 |
-| Supabase 키 입력 후 재배포 | ❌ 대기 중 | M3 키 입력 선행 필요 |
-| QR 코드 생성 기능 | ❌ 미구현 | 발표 슬라이드용 audience URL QR 생성 |
+| GitHub 레포 + 첫 커밋 | ✅ | `474ebfc` — D-Garden v1.0 (원격 미연결, 로컬 전용) |
+| 미배포 변경사항 스테이징 | ✅ 커밋 완료 | `50ebde5`(테마+에이전트), `f896549`(잎 수정) |
+| Supabase 키 입력 후 배포 | ✅ | Vercel 프로덕션 배포, 접근 보호 해제, 3개 경로 200 확인 |
+| QR 코드 생성 | ✅ | `qr-audience.png` — /audience URL, 600px |
 | `spec.json` 수치 라이브 조정 | 🔶 선택 | 현장 반응에 따라 조정 |
-| 실제 모바일 연동 시연 리허설 | ❌ 미진행 | Supabase 연결 후 가능 |
+| 실제 모바일 연동 시연 리허설 | ❌ 미진행 | 폰으로 QR 스캔 → 메시지 전송 → 발표 화면 반응 확인 |
 
 ---
 
@@ -146,10 +146,10 @@
 ## 남은 필수 작업 (해커톤 전 체크리스트)
 
 ```
-[ ] supabase.com 프로젝트 생성 → URL + ANON KEY 복사
-[ ] spec.json 의 SUPABASE_URL / SUPABASE_ANON_KEY 교체
+[x] Supabase 키 확보 (기존 프로젝트 재활용) → URL + publishable key
+[x] spec.json 의 SUPABASE_URL / SUPABASE_ANON_KEY 교체 (2e11f96)
 [x] git commit (50ebde5, f896549 + 그래픽 리뷰 반영 커밋)
-[ ] vercel deploy (또는 git push → auto deploy)
-[ ] 배포된 URL /audience 로 QR 생성 (qr.io 등 무료 사이트)
+[x] vercel deploy → https://d-garden.vercel.app (보호 해제 완료)
+[x] QR 생성 → qr-audience.png (/audience 링크)
 [ ] 실제 폰으로 audience 페이지 접속 → 메시지 전송 → 발표 화면 반응 확인
 ```
