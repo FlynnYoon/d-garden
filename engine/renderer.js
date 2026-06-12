@@ -624,17 +624,20 @@ const Renderer = (() => {
     //    inertia = mass³: 비선형 — 줄기에 극단적 안정성 부여
     const mass      = depth / maxDepth;
     const inertia   = mass * mass * mass;
-    const swayBase  = (0.028 + Math.min(displayCPM / 350, 1) * 0.095) * (1 - cooldownW * 0.85);
+    // OPTIMAL: 잔잔한 바람 / OVERHEAT: 거센 흔들림
+    const optimalCalm   = getStateWeight('OPTIMAL');
+    const overheatWind  = getStateWeight('OVERHEAT');
+    const swayScale     = (1 - optimalCalm * 0.82) * (1 + overheatWind * 0.60);
+    const swayBase  = (0.028 + Math.min(displayCPM / 350, 1) * 0.095) * (1 - cooldownW * 0.85) * swayScale;
     const windPower = Math.max(0, swayBase - inertia * 0.062);
 
-    // 2. 위상 지연(Phase Delay): 바람이 뿌리→끝단으로 전파
-    //    끝단(depthRatio≈1)이 줄기 움직임에 한 박자 늦게 반응
-    const depthRatio = 1 - mass;                               // 0(줄기) ~ 1(끝단)
+    // 2. 위상 지연(Phase Delay)
+    const depthRatio = 1 - mass;
     const phaseDelay = depthRatio * 2.60 + branchId * 0.14 + x1 * 0.003;
 
-    // 3. 다중 주파수(Multi-freq Wind): 1차(거시 기류) + 2차(돌풍) + 3차(난류)
-    //    끝단으로 갈수록 freqMult 3.8배 증가 → 잔가지 고주파 파르르
-    const freqMult = 1.0 + depthRatio * 2.8;
+    // 3. 다중 주파수 Wind — OPTIMAL에서는 끝단 고주파 증폭 억제
+    const freqBoost = 1.0 + depthRatio * (2.8 * (1 - optimalCalm * 0.80));
+    const freqMult  = freqBoost;
     const wind1 = Math.sin(time * 0.00055 * freqMult + phaseDelay)                           * 0.58;
     const wind2 = Math.sin(time * 0.00140 * freqMult + phaseDelay * 1.35 + branchId * 0.28) * 0.30;
     const wind3 = Math.sin(time * 0.00380 * freqMult + phaseDelay * 2.00 + x1  * 0.0065)   * 0.12;
