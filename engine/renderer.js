@@ -315,8 +315,8 @@ const Renderer = (() => {
     // ── 잎 3중 주파수 Flutter ────────────────────────────────────
     const leafPhase   = x * 0.011 + y * 0.009;
     const optimalW    = getStateWeight('OPTIMAL');
-    // OPTIMAL: 귀여운 통통 튀기는 느낌 — 진폭 1.8×, 약간 빠른 주파수
-    const cuteBoost   = 1 + optimalW * 0.8;
+    // OPTIMAL: 극도로 차분한 흔들림 (1/10 수준)
+    const cuteBoost   = 1 + optimalW * 0.0;
     const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.035) * (1 - cooldownW * 0.82) * cuteBoost;
     const fs    = (window.SPEC.LEAF_FLUTTER_SPEED || 0.65) * (1 + optimalW * 0.35);
     const flt1  = Math.sin(time * 0.0008 * fs + leafPhase)        * 0.55;
