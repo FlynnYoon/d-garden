@@ -1225,20 +1225,27 @@ const Renderer = (() => {
    * + 정수리에 귀여운 홀로그램 새 실루엣 (서부 영화 고정 소품)
    */
   function drawSucculent(cx, cy, time, ep) {
-    const gp        = Math.min(1, growthProgress / Math.max(growthTarget, 0.01));
-    const score     = renderState.displayScore;
-    const baseY     = cy;
-    const cooldownW = getStateWeight('COOLDOWN');
-    const bp        = breathPulse(time); // COOLDOWN 진입 시 전체 밝기 호흡
+    const gp         = Math.min(1, growthProgress / Math.max(growthTarget, 0.01));
+    const score      = renderState.displayScore;
+    const baseY      = cy;
+    const cooldownW  = getStateWeight('COOLDOWN');
+    const overheatW  = getStateWeight('OVERHEAT');  // 61~90 구간 가중치
+    const dormantW   = getStateWeight('DORMANT');
+    const bp         = breathPulse(time);
 
     if (gp < 0.02) return;
 
-    // score 60 초과 시 트렁크 보너스 성장: 60→100 구간에서 추가 높이/굵기 부여
-    // cubic ease-in으로 후반에 극적으로 커지는 느낌
-    const s60raw  = Math.max(0, (score - 60) / 40);           // 0~1 (score 60~100)
-    const s60ease = s60raw * s60raw * s60raw;                  // Cubic ease-in → 후반 급성장
-    const trunkH  = canvas.height * (0.10 + gp * 0.58 + s60ease * 0.22); // 최대 88% 높이
-    const trunkW  = Math.max(18, canvas.height * (0.018 + gp * 0.100 + s60ease * 0.042)); // 최대 굵기
+    // DORMANT: 전체 알파 감쇠 (10~20점에서 희미하게)
+    const dormantDim = 1 - dormantW * 0.55;
+
+    // OVERHEAT: 빠른 떨림 추가 (시간 기반 진동)
+    const heatShake  = overheatW * Math.sin(time * 0.018) * 3.5;
+
+    // score 60 초과 시 트렁크 보너스 성장 (OVERHEAT 구간)
+    const s60raw  = Math.max(0, (score - 60) / 40);
+    const s60ease = s60raw * s60raw * s60raw;
+    const trunkH  = canvas.height * (0.10 + gp * 0.58 + s60ease * 0.22);
+    const trunkW  = Math.max(18, canvas.height * (0.018 + gp * 0.100 + s60ease * 0.042));
     const hw      = trunkW / 2;
     const trunkGp = Math.min(1, gp * 2.5);
     const armGp   = Math.max(0, Math.min(1, (gp - 0.32) * 3.2));
@@ -1247,20 +1254,31 @@ const Renderer = (() => {
     const growingTopY = baseY - trunkH * trunkGp;
     const topX        = cx - tiltX;
 
-    // 귀여운 파스텔 홀로그램: 핑크(330°)~민트(160°) 사이를 느리게 왕복
-    // COOLDOWN: 따뜻한 노을빛(30°)으로 이동
-    const cuteOsc = (Math.sin(time * 0.0008) + 1) * 0.5;       // 0~1 왕복
-    const baseHue = 160 + cuteOsc * 170;                        // 민트(160)↔핑크(330)
-    const hue     = baseHue + cooldownW * (38 - baseHue * 0.12);
-    const shimmer = (0.70 + 0.30 * Math.sin(time * 0.0028)) * (1 - cooldownW * 0.42) * bp;
-    // COOLDOWN: 팔이 피곤하게 처짐
-    const cdDroop = cooldownW * 0.30;
+    // ── 색상: 상태별 뚜렷한 구분 ──────────────────────────────────
+    // OPTIMAL: 민트(160°)↔핑크(330°) 느린 왕복
+    // OVERHEAT: 노란-주황(45~65°) 빠른 맥박 + 채도 폭발
+    // COOLDOWN: 따뜻한 노을빛(30°) 느린 호흡
+    const cuteOsc   = (Math.sin(time * 0.0008) + 1) * 0.5;
+    const heatOsc   = (Math.sin(time * 0.0045) + 1) * 0.5;  // OVERHEAT: 더 빠른 진동
+    const baseHueOK = 160 + cuteOsc * 170;                   // OPTIMAL 색조
+    const baseHueOH = 40  + heatOsc * 25;                    // OVERHEAT 색조: 노랑~주황
+    const baseHue   = baseHueOK * (1 - overheatW) + baseHueOH * overheatW;
+    const hue       = baseHue * (1 - cooldownW) + 35 * cooldownW;
 
-    // score 63 이후에도 팔이 계속 커지도록: armGp(등장 타이밍) × armSize(지속 성장)
-    // armSize: score 0→100 선형 증가, 최대 1.55배 (score 100에서 팔이 55% 더 길어짐)
+    // OVERHEAT: 심박처럼 강렬하게 깜빡이는 shimmer
+    const shimmerBase = (0.70 + 0.30 * Math.sin(time * 0.0028));
+    const shimmerHeat = (0.60 + 0.40 * Math.abs(Math.sin(time * 0.0120)));  // 빠른 맥박
+    const shimmer     = (shimmerBase * (1 - overheatW) + shimmerHeat * overheatW)
+                        * (1 - cooldownW * 0.42) * bp * dormantDim;
+
+    // COOLDOWN 처짐 / OVERHEAT 긴장(반대)
+    const cdDroop  =  cooldownW * 0.30;
+    const ohTense  = -overheatW * 0.15;  // OVERHEAT: 팔이 살짝 위로 긴장
+
     const armSize = armGp * (0.80 + gp * 0.75);
 
-    // ── 3개 팔: 클래식 서부 선인장 실루엣 ───────────────────────
+    // ── 3개 팔: COOLDOWN=처짐, OVERHEAT=긴장(위로) ──────────────
+    const armDroop = cdDroop + ohTense;
     const armCfg = [
       {
         side: -1,
@@ -1268,7 +1286,7 @@ const Renderer = (() => {
         len:  canvas.height * 0.23 * armSize,
         h:    canvas.height * (0.26 - cooldownW * 0.06) * armSize,
         w:    Math.max(11, trunkW * 0.84),
-        sag:  0.64 + cdDroop,
+        sag:  0.64 + armDroop,
       },
       {
         side: +1,
@@ -1276,7 +1294,7 @@ const Renderer = (() => {
         len:  canvas.height * 0.16 * armSize,
         h:    canvas.height * (0.18 - cooldownW * 0.04) * armSize,
         w:    Math.max(10, trunkW * 0.74),
-        sag:  0.55 + cdDroop,
+        sag:  0.55 + armDroop,
       },
       {
         side: +1,
@@ -1284,14 +1302,17 @@ const Renderer = (() => {
         len:  canvas.height * 0.26 * armSize,
         h:    canvas.height * (0.30 - cooldownW * 0.07) * armSize,
         w:    Math.max(10, trunkW * 0.64),
-        sag:  0.34 + cdDroop,
+        sag:  0.34 + armDroop,
       },
     ];
 
-    // ── 홀로그램 글리치: ~4.3초 주기로 0.12초간 수평 지터 ──────────
-    const glitchPhase = time % 4300;
-    const inGlitch    = glitchPhase < 120;
-    const glitchX     = inGlitch ? Math.sin(time * 0.9) * 7 : 0;
+    // ── 홀로그램 글리치: OPTIMAL 4.3초, OVERHEAT 0.9초 주기 ────────
+    const glitchPeriod = 4300 - overheatW * 3400;  // OVERHEAT: 훨씬 잦아짐
+    const glitchPhase  = time % glitchPeriod;
+    const glitchDur    = 80  + overheatW * 120;     // OVERHEAT: 더 오래 지속
+    const inGlitch     = glitchPhase < glitchDur;
+    const glitchAmp    = 7   + overheatW * 10;      // OVERHEAT: 더 크게 흔들림
+    const glitchX      = (inGlitch ? Math.sin(time * 0.9) * glitchAmp : 0) + heatShake;
 
     // ── 프로젝터 콘: 바닥 발광 원반에서 위로 퍼지는 빛 (식물 뒤) ──
     {
@@ -1355,9 +1376,9 @@ const Renderer = (() => {
       );
       ctx.closePath();
 
-      const sat  = 82 - cooldownW * 28;
-      const lCtr = 52 - cooldownW * 18;
-      const bpA  = bp * alpha;
+      const sat  = 82 - cooldownW * 28 + overheatW * 15;  // OVERHEAT: 채도 폭발
+      const lCtr = 52 - cooldownW * 18 + overheatW * 8;   // OVERHEAT: 더 밝게
+      const bpA  = bp * alpha * dormantDim;
       const grad = ctx.createLinearGradient(bx - bhw, 0, bx + bhw, 0);
       grad.addColorStop(0,    `hsla(${hue},          ${sat}%, 14%, ${0.94 * bpA})`);
       grad.addColorStop(0.20, `hsla(${(hue+22)%360}, ${sat+4}%, 30%, ${0.90 * bpA})`);
@@ -1371,39 +1392,71 @@ const Renderer = (() => {
       ctx.lineWidth   = 2.5; ctx.shadowBlur = 18 * bp; ctx.stroke();
       ctx.restore();
 
-      // ── 귀여운 얼굴: 눈 + 볼터치 ──────────────────────────────
+      // ── 귀여운 얼굴: 상태별 표정 변화 ────────────────────────────
       if (alpha > 0.3 && trunkGp > 0.5) {
-        const faceY   = topY + h * 0.38;  // 얼굴 세로 위치 (위쪽 1/3)
+        const faceY   = topY + h * 0.38;
         const eyeR    = Math.max(2, bhw * 0.14);
         const eyeOffX = bhw * 0.38;
-        const blinkT  = Math.sin(time * 0.0012 + 1.5); // 눈 깜빡임 주기
-        const blink   = blinkT > 0.93 ? Math.max(0, 1 - (blinkT - 0.93) * 40) : 1; // 0.93~1.0 구간만 깜빡
-        const eyeA    = bpA * 0.92 * blink;
+
+        // OVERHEAT: 빠른 눈 떨림 / COOLDOWN: 졸린 눈 / OPTIMAL: 깜빡임
+        const blinkT  = Math.sin(time * (0.0012 + overheatW * 0.014) + 1.5);
+        const blink   = blinkT > 0.93 ? Math.max(0, 1 - (blinkT - 0.93) * 40) : 1;
+        // COOLDOWN: 눈이 반쯤 감김
+        const eyeScaleY = 1 * (1 - cooldownW * 0.55) * blink;
+        const eyeA      = bpA * 0.92 * dormantDim;
 
         ctx.save();
         ctx.shadowBlur = 10 * bp; ctx.shadowColor = `hsl(${(hue+60)%360}, 100%, 90%)`;
         ctx.fillStyle  = `hsl(${(hue+60)%360}, 100%, 88%)`;
 
-        // 왼쪽 눈 (하트 모양 근사: 타원 + 위쪽 두 돌기)
         ctx.globalAlpha = eyeA;
-        ctx.beginPath(); ctx.ellipse(bx - eyeOffX, faceY, eyeR, eyeR * blink, 0, 0, Math.PI * 2); ctx.fill();
-        // 오른쪽 눈
-        ctx.beginPath(); ctx.ellipse(bx + eyeOffX, faceY, eyeR, eyeR * blink, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(bx - eyeOffX, faceY, eyeR, eyeR * eyeScaleY, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(bx + eyeOffX, faceY, eyeR, eyeR * eyeScaleY, 0, 0, Math.PI * 2); ctx.fill();
 
-        // 볼 블러셔 (핑크 원)
-        ctx.globalAlpha = bpA * 0.30;
-        ctx.fillStyle   = `hsl(340, 100%, 75%)`;
-        ctx.shadowBlur  = 14;
+        // OVERHEAT: 이마에 땀방울 + 불안한 눈썹 (기울어진 선)
+        if (overheatW > 0.3) {
+          ctx.globalAlpha = eyeA * overheatW;
+          ctx.strokeStyle = `hsl(50, 100%, 80%)`;
+          ctx.lineWidth   = Math.max(1, eyeR * 0.55);
+          ctx.lineCap     = 'round';
+          // 왼쪽 눈썹 (안쪽이 내려간 걱정 모양)
+          ctx.beginPath();
+          ctx.moveTo(bx - eyeOffX - eyeR, faceY - eyeR * 2.2);
+          ctx.lineTo(bx - eyeOffX + eyeR, faceY - eyeR * 1.5);
+          ctx.stroke();
+          // 오른쪽 눈썹
+          ctx.beginPath();
+          ctx.moveTo(bx + eyeOffX - eyeR, faceY - eyeR * 1.5);
+          ctx.lineTo(bx + eyeOffX + eyeR, faceY - eyeR * 2.2);
+          ctx.stroke();
+          // 땀방울
+          const sweatY = faceY - eyeR * 3.5;
+          ctx.fillStyle = `hsl(200, 100%, 75%)`;
+          ctx.shadowColor = `rgba(100,200,255,0.8)`; ctx.shadowBlur = 8;
+          ctx.beginPath(); ctx.arc(bx + eyeOffX * 1.5, sweatY + Math.sin(time * 0.003) * 3, eyeR * 0.65, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 볼 블러셔 (COOLDOWN엔 작아짐, OVERHEAT엔 빨개짐)
+        const blushHue = 340 + overheatW * (-295); // OVERHEAT: 빨강(45°쪽)
+        ctx.globalAlpha = bpA * (0.30 - overheatW * 0.10) * dormantDim;
+        ctx.fillStyle   = `hsl(${blushHue}, 100%, 72%)`;
+        ctx.shadowBlur  = 14; ctx.shadowColor = `hsl(${blushHue}, 100%, 60%)`;
         ctx.beginPath(); ctx.arc(bx - eyeOffX * 1.6, faceY + eyeR * 2.2, eyeR * 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(bx + eyeOffX * 1.6, faceY + eyeR * 2.2, eyeR * 1.5, 0, Math.PI * 2); ctx.fill();
 
-        // 작은 미소 (arc)
+        // 입: OPTIMAL=미소, OVERHEAT=일자/당황, COOLDOWN=처진 입꼬리
         ctx.globalAlpha = eyeA * 0.75;
         ctx.strokeStyle = `hsl(${(hue+60)%360}, 100%, 88%)`;
         ctx.lineWidth   = Math.max(1, eyeR * 0.7);
         ctx.lineCap     = 'round'; ctx.shadowBlur = 6;
+        const mouthY = faceY + eyeR * 2.8;
+        const smileDir = 1 - overheatW * 1.0 - cooldownW * 2.0; // 1=미소, 0=일자, -1=처짐
         ctx.beginPath();
-        ctx.arc(bx, faceY + eyeR * 2.8, eyeR * 1.4, 0.2, Math.PI - 0.2);
+        ctx.arc(bx, mouthY, eyeR * 1.4,
+          smileDir > 0 ? 0.2 : -0.2,
+          smileDir > 0 ? Math.PI - 0.2 : Math.PI + 0.2,
+          smileDir < 0
+        );
         ctx.stroke();
         ctx.restore();
       }
