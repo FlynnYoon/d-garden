@@ -45,49 +45,64 @@
     /* ── 리모콘 버튼 공통 ── */
     .remote-btn {
       width: 100%;
-      padding: clamp(12px, 3.5vh, 22px) 16px;
-      border-radius: 18px;
-      font-family: 'Space Mono', monospace;
-      font-size: clamp(0.9rem, 3.2vw, 1.15rem);
-      font-weight: 700;
-      letter-spacing: 0.06em;
+      height: 100%;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: 20px;
+      font-family: 'Inter', sans-serif;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: transform 0.12s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s ease, background 0.15s ease;
       user-select: none;
       border: 1px solid transparent;
       position: relative;
       overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .remote-btn .btn-emoji {
+      font-size: clamp(1.5rem, 5vw, 2rem);
+      line-height: 1;
+      pointer-events: none;
+    }
+    .remote-btn .btn-text {
+      font-size: clamp(0.78rem, 2.8vw, 0.95rem);
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      pointer-events: none;
     }
     .remote-btn:active {
-      transform: scale(0.94);
+      transform: scale(0.91);
     }
 
     /* 긍정 — 에메랄드 그린 */
     .btn-pos {
-      background: linear-gradient(135deg, rgba(0,255,140,0.13), rgba(0,210,255,0.10));
-      border-color: rgba(0, 255, 140, 0.35);
+      background: linear-gradient(160deg, rgba(0,255,140,0.16) 0%, rgba(0,200,120,0.08) 100%);
+      border-color: rgba(0,255,140,0.30);
       color: #00ff99;
-      text-shadow: 0 0 14px rgba(0,255,140,0.65);
-      box-shadow: 0 0 22px rgba(0,255,140,0.10), inset 0 1px 0 rgba(0,255,140,0.10);
+      box-shadow: 0 2px 18px rgba(0,255,140,0.08), inset 0 1px 0 rgba(0,255,140,0.12);
+      text-shadow: 0 0 16px rgba(0,255,140,0.70);
     }
     .btn-pos:active {
-      background: linear-gradient(135deg, rgba(0,255,140,0.28), rgba(0,210,255,0.22));
-      border-color: rgba(0, 255, 140, 0.75);
-      box-shadow: 0 0 36px rgba(0,255,140,0.28);
+      background: linear-gradient(160deg, rgba(0,255,140,0.32) 0%, rgba(0,220,140,0.20) 100%);
+      border-color: rgba(0,255,140,0.80);
+      box-shadow: 0 0 32px rgba(0,255,140,0.35), inset 0 1px 0 rgba(0,255,140,0.20);
     }
 
     /* 부정 — 마젠타/퍼플 */
     .btn-neg {
-      background: linear-gradient(135deg, rgba(238,85,255,0.12), rgba(180,0,180,0.08));
-      border-color: rgba(238, 85, 255, 0.30);
+      background: linear-gradient(160deg, rgba(238,85,255,0.14) 0%, rgba(180,0,200,0.07) 100%);
+      border-color: rgba(238,85,255,0.26);
       color: #ee55ff;
-      text-shadow: 0 0 14px rgba(238,85,255,0.60);
-      box-shadow: 0 0 22px rgba(238,85,255,0.08), inset 0 1px 0 rgba(238,85,255,0.08);
+      box-shadow: 0 2px 18px rgba(238,85,255,0.07), inset 0 1px 0 rgba(238,85,255,0.10);
+      text-shadow: 0 0 16px rgba(238,85,255,0.65);
     }
     .btn-neg:active {
-      background: linear-gradient(135deg, rgba(238,85,255,0.26), rgba(180,0,180,0.20));
-      border-color: rgba(238, 85, 255, 0.70);
-      box-shadow: 0 0 36px rgba(238,85,255,0.26);
+      background: linear-gradient(160deg, rgba(238,85,255,0.30) 0%, rgba(180,0,200,0.18) 100%);
+      border-color: rgba(238,85,255,0.75);
+      box-shadow: 0 0 32px rgba(238,85,255,0.30), inset 0 1px 0 rgba(238,85,255,0.18);
     }
 
     /* 전송 시 펄스 링 애니메이션 */
@@ -192,9 +207,15 @@
           ▲ 긍정 에너지
         </p>
         <div class="grid grid-cols-3 gap-3 flex-1">
-          <button class="remote-btn btn-pos" onclick="send('오~', 'pos')">오~</button>
-          <button class="remote-btn btn-pos" onclick="send('와우', 'pos')">와우</button>
-          <button class="remote-btn btn-pos" onclick="send('굿', 'pos')">굿</button>
+          <button class="remote-btn btn-pos" onclick="send('오~', 'pos')">
+            <span class="btn-emoji">😮</span><span class="btn-text">오~</span>
+          </button>
+          <button class="remote-btn btn-pos" onclick="send('와우', 'pos')">
+            <span class="btn-emoji">🤩</span><span class="btn-text">와우</span>
+          </button>
+          <button class="remote-btn btn-pos" onclick="send('굿', 'pos')">
+            <span class="btn-emoji">👍</span><span class="btn-text">굿</span>
+          </button>
         </div>
       </div>
 
@@ -207,9 +228,15 @@
           ▼ 부정 에너지
         </p>
         <div class="grid grid-cols-3 gap-3 flex-1">
-          <button class="remote-btn btn-neg" onclick="send('에이', 'neg')">에이</button>
-          <button class="remote-btn btn-neg" onclick="send('별로', 'neg')">별로</button>
-          <button class="remote-btn btn-neg" onclick="send('흠...', 'neg')">흠...</button>
+          <button class="remote-btn btn-neg" onclick="send('에이', 'neg')">
+            <span class="btn-emoji">😒</span><span class="btn-text">에이</span>
+          </button>
+          <button class="remote-btn btn-neg" onclick="send('별로', 'neg')">
+            <span class="btn-emoji">👎</span><span class="btn-text">별로</span>
+          </button>
+          <button class="remote-btn btn-neg" onclick="send('흠...', 'neg')">
+            <span class="btn-emoji">🤔</span><span class="btn-text">흠...</span>
+          </button>
         </div>
       </div>
 
