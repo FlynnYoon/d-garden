@@ -624,10 +624,11 @@ const Renderer = (() => {
     //    inertia = mass³: 비선형 — 줄기에 극단적 안정성 부여
     const mass      = depth / maxDepth;
     const inertia   = mass * mass * mass;
-    // OPTIMAL: 잔잔한 바람 / OVERHEAT: 거센 흔들림
-    const optimalCalm   = getStateWeight('OPTIMAL');
-    const overheatWind  = getStateWeight('OVERHEAT');
-    const swayScale     = (1 - optimalCalm * 0.82) * (1 + overheatWind * 0.60);
+    // OPTIMAL: 거의 정지 / OVERHEAT: 거센 흔들림
+    const optimalCalm  = getStateWeight('OPTIMAL');
+    const overheatWind = getStateWeight('OVERHEAT');
+    // OPTIMAL에서 sway를 97% 억제 → 사실상 정지
+    const swayScale    = (1 - optimalCalm * 0.97) * (1 + overheatWind * 0.60);
     const swayBase  = (0.028 + Math.min(displayCPM / 350, 1) * 0.095) * (1 - cooldownW * 0.85) * swayScale;
     const windPower = Math.max(0, swayBase - inertia * 0.062);
 
@@ -635,12 +636,11 @@ const Renderer = (() => {
     const depthRatio = 1 - mass;
     const phaseDelay = depthRatio * 2.60 + branchId * 0.14 + x1 * 0.003;
 
-    // 3. 다중 주파수 Wind — OPTIMAL에서는 끝단 고주파 증폭 억제
-    const freqBoost = 1.0 + depthRatio * (2.8 * (1 - optimalCalm * 0.80));
-    const freqMult  = freqBoost;
+    // 3. 다중 주파수 Wind — OPTIMAL에서 고주파 완전 억제
+    const freqMult = 1.0 + depthRatio * (2.8 * (1 - optimalCalm * 0.97));
     const wind1 = Math.sin(time * 0.00055 * freqMult + phaseDelay)                           * 0.58;
     const wind2 = Math.sin(time * 0.00140 * freqMult + phaseDelay * 1.35 + branchId * 0.28) * 0.30;
-    const wind3 = Math.sin(time * 0.00380 * freqMult + phaseDelay * 2.00 + x1  * 0.0065)   * 0.12;
+    const wind3 = Math.sin(time * 0.00380 * freqMult + phaseDelay * 2.00 + x1  * 0.0065)   * (1 - optimalCalm) * 0.12;
     const sway  = windPower * (wind1 + wind2 + wind3);
 
     const organicAngle  = angle + sway + (sr(0) - 0.5) * 0.22;
