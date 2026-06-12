@@ -286,7 +286,7 @@ const Renderer = (() => {
     const li         = tip.li !== undefined ? tip.li : 0;
     const threshold  = branchCompletionThreshold(li, tip.id);
     const leafAge    = Math.max(0, growthProgress - threshold);
-    const leafSeed   = Math.sin(tip.x * 12.3 + tip.y * 45.6);
+    const leafSeed   = seededRandom(tip.id * 101 + 13) * 2 - 1; // drawAllLeaves와 동일 시드
     const growthSpd  = 0.8 + Math.abs(leafSeed) * 1.2;
     return Math.min(1.0, leafAge * growthSpd);
   }
@@ -305,19 +305,23 @@ const Renderer = (() => {
    * @param angleOffset  가지 방향 대비 개별 잎의 뻗음 각도 — 이걸로 나비 방지
    *                     drawAllLeaves에서 좌표 DNA로 계산된 방향각을 전달받는다.
    */
-  function drawLeaf(x, y, angle, targetSize, ep, time, birthProgress, angleOffset, droop) {
+  function drawLeaf(x, y, angle, targetSize, ep, time, birthProgress, angleOffset, droop, leafId) {
     if (birthProgress < 0.015) return;
 
     const cooldownW   = getStateWeight('COOLDOWN');
     const bp          = breathPulse(time);
     const eased       = springEase(birthProgress);
 
-    // ── 잎 Flutter: 단일 사인파 (맥놀이 현상 방지) ───────────────
-    // 다중 주파수 합성 시 beating 효과로 시각적으로 더 빠르게 보이는 문제 제거
-    const leafPhase   = x * 0.011 + y * 0.009;
-    const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.035) * (1 - cooldownW * 0.82);
-    // 한 주기 약 8~10초: 바람에 느긋하게 흔들리는 느낌
-    const flutter = flutterBase * Math.sin(time * 0.00035 + leafPhase);
+    // ── 잎 Flutter: 잎마다 진폭·속도·위상이 모두 다른 단일 사인파 ──
+    // 시드는 반드시 leafId(가지 고유번호) 기반 — 좌표 기반 시드는 나무가
+    // 숨쉴 때마다(breathe·점수 스프링) 값이 재추첨되어 나비 펄럭임을 유발함
+    const lid       = leafId || 1;
+    const ampRand   = 0.5 + seededRandom(lid * 7 + 1);          // 0.5 ~ 1.5배
+    const spdRand   = 0.6 + seededRandom(lid * 7 + 2) * 0.8;    // 0.6 ~ 1.4배
+    const phaseRand = seededRandom(lid * 7 + 3) * Math.PI * 2;  // 위상 분산
+    const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.04) * ampRand * (1 - cooldownW * 0.82);
+    // 한 주기 약 3.7~8.7초: 잎마다 제각각 느긋하게 살랑이는 느낌
+    const flutter = flutterBase * Math.sin(time * 0.001 * (window.SPEC.LEAF_FLUTTER_SPEED || 1.2) * spdRand + phaseRand);
 
     const len = targetSize * eased;
     const wid = len * 0.36; // 약 2.8:1 — 너무 뾰족하지 않고 통통한 잎
@@ -380,7 +384,22 @@ const Renderer = (() => {
     ctx.restore();
   }
 
+  // ─── 잎 생명주기 레이어 ───────────────────────────────────────
+  // 잎이 선별 목록에 들고 나는 순간 즉시 나타나고 사라지면 '그림이 깜빡이는'
+  // 느낌이 됨. 모든 잎은 p(현재 진행도)가 target(목표 진행도)을 매 프레임
+  // 천천히 따라가며 0에서 자라나고, 목록에서 빠지면 0으로 줄어든 뒤 제거된다.
+  const leafStates = new Map();
+  let leafFrame = 0;
+
+  function requestLeaf(id, x, y, angle, size, dir, droop, target) {
+    let st = leafStates.get(id);
+    if (!st) { st = { p: 0 }; leafStates.set(id, st); }
+    st.x = x; st.y = y; st.angle = angle; st.size = size;
+    st.dir = dir; st.droop = droop; st.target = target; st.seen = leafFrame;
+  }
+
   function drawAllLeaves(time, ep) {
+    leafFrame++;
     const BASE_LEAF_SIZE = (window.SPEC.BASE_LEAF_SIZE || 10) * (window.SPEC.LEAF_SIZE_SCALE || 3.2) * (1 + renderState.displayScore * 0.008);
     const SIZE_VARIANCE  = window.SPEC.LEAF_SIZE_VARIANCE || 2.4;
 
@@ -397,9 +416,10 @@ const Renderer = (() => {
     if (pool.length < 12) pool = treeTips.filter(t => t.gf >= 0.25); // 어린 나무: 전체 허용
     let tips = pool;
     if (pool.length > maxTips) {
-      const step = pool.length / maxTips;
-      tips = [];
-      for (let i = 0; i < maxTips; i++) tips.push(pool[Math.floor(i * step)]);
+      // id 기반 안정 선별: 인덱스 간격 샘플링은 pool 크기가 1만 변해도
+      // 잎 배정이 대거 뒤바뀌어 잎이 무더기로 깜빡이는 원인이 됨
+      const keepRatio = maxTips / pool.length;
+      tips = pool.filter(t => seededRandom(t.id * 13 + 5) < keepRatio);
     }
     tips.forEach((tip) => {
 
@@ -411,7 +431,9 @@ const Renderer = (() => {
       const threshold = branchCompletionThreshold(li, tip.id) - 0.8;
       const leafAge   = Math.max(0, growthProgress - threshold);
 
-      const leafSeed    = Math.sin(tip.x * 12.3 + tip.y * 45.6);
+      // 좌표 DNA → id DNA: 좌표 기반 시드는 가지 끝이 1px만 움직여도
+      // 잎 방향·크기가 재추첨되어 나비처럼 펄럭이는 원인이었음
+      const leafSeed    = seededRandom(tip.id * 101 + 13) * 2 - 1;
       const absS        = Math.abs(leafSeed);
       // 크기 범위: 1.0x ~ (1+VARIANCE)x BASE_LEAF_SIZE → 다양한 잎 크기
       const maxLeafSize = BASE_LEAF_SIZE * (1.0 + absS * SIZE_VARIANCE);
@@ -426,11 +448,11 @@ const Renderer = (() => {
       // 부채꼴 각도 축소(±71°→±51°): 한 점에서 방사형으로 퍼지면 꽃잎처럼 보임
       const leafDir         = leafSeed * 0.9;
 
-      drawLeaf(tip.x, tip.y, tip.angle, currentLeafSize, ep, time, leafProgress, leafDir, droop);
+      requestLeaf(tip.id * 3, tip.x, tip.y, tip.angle, currentLeafSize, leafDir, droop, leafProgress);
 
       // ── 2번째 잎: 30% 확률 ──
       if (seededRandom(tip.id * 47 + 7) > 0.70) {
-        const subSeed     = Math.sin(tip.x * 8.7 + tip.y * 33.2 + 1.5);
+        const subSeed     = seededRandom(tip.id * 53 + 17) * 2 - 1;
         const absSubS     = Math.abs(subSeed);
         const subMaxSize  = BASE_LEAF_SIZE * (0.75 + absSubS * 2.2);
         const subSpeed    = 1.3 + absSubS * 1.6;
@@ -441,13 +463,13 @@ const Renderer = (() => {
           const bx2  = tip.x - Math.cos(tip.angle) * gap2;
           const by2  = tip.y - Math.sin(tip.angle) * gap2;
           const subDir = subSeed * 0.9 + Math.PI * 0.16;
-          drawLeaf(bx2, by2, tip.angle, subMaxSize * cooldownShrink, ep, time, subProgress, subDir, droop);
+          requestLeaf(tip.id * 3 + 1, bx2, by2, tip.angle, subMaxSize * cooldownShrink, subDir, droop, subProgress);
         }
       }
 
       // ── 3번째 잎: 15% 확률 ──
       if (seededRandom(tip.id * 61 + 11) > 0.85) {
-        const triSeed     = Math.sin(tip.x * 5.5 + tip.y * 22.1 + 3.0);
+        const triSeed     = seededRandom(tip.id * 71 + 23) * 2 - 1;
         const absTriS     = Math.abs(triSeed);
         const triMaxSize  = BASE_LEAF_SIZE * (0.65 + absTriS * 1.8);
         const triSpeed    = 1.2 + absTriS * 1.5;
@@ -458,7 +480,7 @@ const Renderer = (() => {
           const bx3  = tip.x - Math.cos(tip.angle) * gap3;
           const by3  = tip.y - Math.sin(tip.angle) * gap3;
           const triDir = triSeed * 0.9 - Math.PI * 0.12;
-          drawLeaf(bx3, by3, tip.angle, triMaxSize * cooldownShrink, ep, time, triProgress, triDir, droop);
+          requestLeaf(tip.id * 3 + 2, bx3, by3, tip.angle, triMaxSize * cooldownShrink, triDir, droop, triProgress);
         }
       }
 
@@ -479,6 +501,16 @@ const Renderer = (() => {
           ctx.restore();
         }
       }
+    });
+
+    // ── 잎 생명주기 패스: 실제 드로우는 여기서만 ──────────────────
+    // 이번 프레임 목록에서 빠진 잎은 target=0 → 자연스럽게 줄어든 뒤 제거
+    const growEase = window.SPEC.LEAF_GROW_EASE || 0.045;
+    leafStates.forEach((st, id) => {
+      if (st.seen !== leafFrame) st.target = 0;
+      st.p += (st.target - st.p) * growEase;
+      if (st.p < 0.015 && st.target < 0.015) { leafStates.delete(id); return; }
+      drawLeaf(st.x, st.y, st.angle, st.size, ep, time, st.p, st.dir, st.droop, id);
     });
   }
 
@@ -2359,6 +2391,7 @@ const Renderer = (() => {
     PALETTE      = THEMES[name];
     currPalette  = PALETTE[currentState];
     transitionT  = 0;
+    leafStates.clear(); // 테마 전환 시 이전 테마의 잎 잔상 제거
     try { localStorage.setItem('d-garden-theme', name); } catch (_) {}
   }
 

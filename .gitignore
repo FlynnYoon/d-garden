@@ -4,5 +4,6 @@ extension/*.vsix
 agent/_*.out
 agent/_*.err
 .DS_Store
+.claude/
 
 .vercel

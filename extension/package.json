@@ -1,0 +1,18 @@
+{
+  "name": "d-garden-bridge",
+  "displayName": "D-Garden Bridge",
+  "description": "Cursor/VS Code 타이핑을 D-Garden 페이지로 중계하는 로컬 SSE 브리지",
+  "version": "0.0.1",
+  "publisher": "d-garden",
+  "license": "ISC",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js"
+}

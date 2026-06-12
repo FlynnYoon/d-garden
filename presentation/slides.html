@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>D-Garden · 발표 슬라이드</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=Space+Mono:wght@400;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --accent: #00ffcc;
+      --accent-glow: rgba(0, 245, 175, 0.55);
+      --why:  #ffcc44;
+      --what: #00ffcc;
+      --how:  #55ddff;
+      --if:   #ff55cc;
+      --text-hi: rgba(255,255,255,0.92);
+      --text-mid: rgba(255,255,255,0.62);
+      --text-lo: rgba(255,255,255,0.38);
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #020208;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      color: var(--text-hi);
+    }
+
+    /* 배경 파티클 캔버스 (D-Garden 씨앗 톤) */
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    /* 배경 빛 오브 — 본편과 동일 토큰 */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(100px);
+      pointer-events: none;
+      z-index: 0;
+      transition: background 1.2s ease;
+    }
+
+    /* 글래스 패널 — 본편(index/audience)과 동일 토큰 */
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(24px) saturate(160%);
+      -webkit-backdrop-filter: blur(24px) saturate(160%);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 20px;
+      box-shadow:
+        0 8px 36px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    }
+
+    /* ── 슬라이드 골격 ── */
+    .slide {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: stretch;
+      padding: clamp(28px, 5vw, 64px);
+      padding-bottom: clamp(70px, 9vh, 110px);
+      gap: clamp(16px, 2.4vh, 28px);
+    }
+    .slide.active { display: flex; animation: slideIn 0.55s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    /* 내부 요소 순차 등장 */
+    .slide.active > * { animation: riseIn 0.6s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
+    .slide.active > *:nth-child(2) { animation-delay: 0.08s; }
+    .slide.active > *:nth-child(3) { animation-delay: 0.16s; }
+    .slide.active > *:nth-child(4) { animation-delay: 0.24s; }
+    .slide.active > *:nth-child(5) { animation-delay: 0.32s; }
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* 섹션 라벨 (WHY / WHAT / HOW / IF) */
+    .section-tag {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(0.7rem, 1.1vw, 0.85rem);
+      font-weight: 700;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--sec, var(--accent));
+    }
+    .section-tag::before {
+      content: '';
+      width: 26px;
+      height: 2px;
+      background: var(--sec, var(--accent));
+      box-shadow: 0 0 10px var(--sec, var(--accent));
+    }
+
+    h1 {
+      font-size: clamp(1.9rem, 4.4vw, 3.4rem);
+      font-weight: 900;
+      line-height: 1.22;
+      letter-spacing: -0.01em;
+    }
+    h1 em {
+      font-style: normal;
+      color: var(--sec, var(--accent));
+      text-shadow: 0 0 28px var(--sec-glow, var(--accent-glow));
+    }
+
+    .lead {
+      font-size: clamp(0.95rem, 1.7vw, 1.2rem);
+      font-weight: 300;
+      color: var(--text-mid);
+      line-height: 1.75;
+      max-width: 46ch;
+    }
+    .lead strong { color: var(--text-hi); font-weight: 600; }
+
+    .mono {
+      font-family: 'Space Mono', monospace;
+    }
+
+    /* ── 슬라이드 1: QR 온보딩 ── */
+    .qr-wrap {
+      align-self: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(12px, 2vh, 20px);
+    }
+    .qr-frame {
+      position: relative;
+      padding: clamp(14px, 2vw, 22px);
+      border-radius: 28px;
+      background: rgba(255,255,255,0.96);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.15),
+        0 0 50px var(--accent-glow),
+        0 0 130px rgba(0, 245, 175, 0.25);
+      animation: qrPulse 2.8s ease-in-out infinite;
+    }
+    @keyframes qrPulse {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.15), 0 0 40px var(--accent-glow), 0 0 110px rgba(0,245,175,0.20); }
+      50%      { box-shadow: 0 0 0 1px rgba(255,255,255,0.25), 0 0 70px var(--accent-glow), 0 0 170px rgba(0,245,175,0.40); }
+    }
+    .qr-frame img {
+      display: block;
+      width: clamp(190px, 30vh, 320px);
+      height: auto;
+      border-radius: 12px;
+    }
+    .qr-url {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(0.85rem, 1.6vw, 1.15rem);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      text-shadow: 0 0 18px var(--accent-glow);
+    }
+    .qr-cta {
+      font-size: clamp(1rem, 1.9vw, 1.35rem);
+      font-weight: 600;
+      color: var(--text-hi);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .logo-text {
+      font-family: 'Space Mono', monospace;
+      font-weight: 700;
+      letter-spacing: 0.3em;
+      color: var(--text-lo);
+      text-transform: uppercase;
+      font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+      text-align: center;
+    }
+    .slogan {
+      font-size: clamp(0.75rem, 1.3vw, 0.95rem);
+      color: var(--text-mid);
+      font-weight: 300;
+      letter-spacing: 0.05em;
+      text-align: center;
+    }
+
+    /* ── 카드/리스트 공통 ── */
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(10px, 1.6vh, 16px);
+    }
+    .card {
+      padding: clamp(14px, 2.2vh, 22px) clamp(16px, 2.4vw, 26px);
+      display: flex;
+      align-items: center;
+      gap: clamp(12px, 1.8vw, 20px);
+    }
+    .card .icon {
+      font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+      flex-shrink: 0;
+      filter: drop-shadow(0 0 12px var(--sec-glow, var(--accent-glow)));
+    }
+    .card .body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .card .title {
+      font-size: clamp(0.95rem, 1.7vw, 1.2rem);
+      font-weight: 700;
+    }
+    .card .title .mono { color: var(--sec, var(--accent)); font-size: 0.92em; }
+    .card .desc {
+      font-size: clamp(0.78rem, 1.3vw, 0.95rem);
+      font-weight: 300;
+      color: var(--text-mid);
+      line-height: 1.55;
+    }
+
+    /* 플로우 다이어그램 (세로) */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      align-self: stretch;
+    }
+    .flow-node {
+      padding: clamp(13px, 2vh, 20px) clamp(16px, 2.4vw, 26px);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .flow-arrow {
+      align-self: center;
+      color: var(--sec, var(--accent));
+      font-size: clamp(1rem, 1.8vh, 1.4rem);
+      line-height: 1.7;
+      text-shadow: 0 0 12px var(--sec-glow, var(--accent-glow));
+    }
+
+    /* 상태 칩 (4단계) */
+    .state-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(10px, 1.6vh, 16px);
+    }
+    .state-chip {
+      padding: clamp(13px, 2vh, 20px) clamp(14px, 1.8vw, 22px);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-left: 3px solid var(--chip);
+    }
+    .state-chip .range {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(0.65rem, 1.1vw, 0.78rem);
+      color: var(--text-lo);
+      letter-spacing: 0.08em;
+    }
+    .state-chip .name {
+      font-size: clamp(0.92rem, 1.6vw, 1.15rem);
+      font-weight: 700;
+      color: var(--chip);
+      text-shadow: 0 0 16px var(--chip-glow);
+    }
+    .state-chip .hint {
+      font-size: clamp(0.72rem, 1.2vw, 0.88rem);
+      font-weight: 300;
+      color: var(--text-mid);
+      line-height: 1.5;
+    }
+
+    /* 타임라인 */
+    .timeline { display: flex; flex-direction: column; gap: 0; }
+    .tl-item { display: flex; gap: clamp(14px, 2vw, 22px); }
+    .tl-rail { display: flex; flex-direction: column; align-items: center; }
+    .tl-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--sec, var(--accent));
+      box-shadow: 0 0 14px var(--sec-glow, var(--accent-glow));
+      flex-shrink: 0;
+      margin-top: 6px;
+    }
+    .tl-line { width: 2px; flex: 1; background: linear-gradient(to bottom, var(--sec, var(--accent)), rgba(255,255,255,0.06)); opacity: 0.4; }
+    .tl-body { padding-bottom: clamp(16px, 2.6vh, 28px); display: flex; flex-direction: column; gap: 4px; }
+    .tl-date {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(0.7rem, 1.2vw, 0.85rem);
+      font-weight: 700;
+      color: var(--sec, var(--accent));
+      letter-spacing: 0.1em;
+    }
+    .tl-title { font-size: clamp(0.95rem, 1.7vw, 1.18rem); font-weight: 700; }
+    .tl-desc  { font-size: clamp(0.76rem, 1.3vw, 0.92rem); font-weight: 300; color: var(--text-mid); line-height: 1.55; }
+
+    /* 큰 숫자 스탯 */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: clamp(10px, 1.6vw, 18px);
+    }
+    .stat {
+      padding: clamp(14px, 2.2vh, 22px) 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+    }
+    .stat .num {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(1.7rem, 3.4vw, 2.8rem);
+      font-weight: 700;
+      color: var(--sec, var(--accent));
+      text-shadow: 0 0 24px var(--sec-glow, var(--accent-glow));
+      line-height: 1;
+    }
+    .stat .label {
+      font-size: clamp(0.66rem, 1.1vw, 0.8rem);
+      color: var(--text-mid);
+      letter-spacing: 0.06em;
+      line-height: 1.4;
+    }
+
+    /* 인용/강조 박스 */
+    .quote {
+      padding: clamp(18px, 3vh, 30px) clamp(20px, 3vw, 32px);
+      border-left: 3px solid var(--sec, var(--accent));
+      font-size: clamp(1.05rem, 2vw, 1.5rem);
+      font-weight: 600;
+      line-height: 1.65;
+    }
+    .quote em {
+      font-style: normal;
+      color: var(--sec, var(--accent));
+      text-shadow: 0 0 22px var(--sec-glow, var(--accent-glow));
+    }
+
+    /* ── 섹션 디바이더 (WHY/WHAT/HOW/IF 룰 명시) ── */
+    .slide.divider { align-items: flex-start; justify-content: center; gap: clamp(10px, 1.6vh, 18px); }
+    .div-num {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(0.72rem, 1.2vw, 0.9rem);
+      font-weight: 700;
+      letter-spacing: 0.4em;
+      color: var(--text-lo);
+      text-transform: uppercase;
+    }
+    .div-word {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(4rem, 13vw, 8.5rem);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      color: var(--sec, var(--accent));
+      text-shadow:
+        0 0 30px var(--sec-glow, var(--accent-glow)),
+        0 0 90px var(--sec-glow, var(--accent-glow));
+    }
+    .div-q {
+      font-size: clamp(1rem, 1.9vw, 1.4rem);
+      font-weight: 300;
+      color: var(--text-mid);
+      line-height: 1.6;
+    }
+    .div-rule {
+      display: flex;
+      gap: 8px;
+      margin-top: clamp(8px, 1.4vh, 14px);
+    }
+    .div-rule span {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(0.6rem, 1vw, 0.72rem);
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.10);
+      color: var(--text-lo);
+    }
+    .div-rule span.on {
+      border-color: var(--sec, var(--accent));
+      color: var(--sec, var(--accent));
+      box-shadow: 0 0 14px var(--sec-glow, var(--accent-glow));
+    }
+
+    /* ── 하단 내비게이션 ── */
+    #nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: clamp(12px, 2vh, 20px) clamp(28px, 5vw, 64px);
+      pointer-events: none;
+    }
+    #nav .mono {
+      font-size: 0.68rem;
+      color: var(--text-lo);
+      letter-spacing: 0.15em;
+    }
+    #dots { display: flex; gap: 7px; }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(255,255,255,0.14);
+      transition: all 0.35s ease;
+    }
+    .dot.on {
+      background: var(--sec-now, var(--accent));
+      box-shadow: 0 0 10px var(--sec-now, var(--accent));
+      transform: scale(1.25);
+    }
+
+    /* 진행 바 */
+    #progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      background: var(--sec-now, var(--accent));
+      box-shadow: 0 0 12px var(--sec-now, var(--accent));
+      z-index: 10;
+      transition: width 0.45s cubic-bezier(0.22, 0.9, 0.3, 1), background 0.45s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="bg-canvas"></canvas>
+  <div class="bg-orb" id="orb1" style="width:380px;height:380px;top:-100px;right:-110px;background:#00ffcc;opacity:0.07;"></div>
+  <div class="bg-orb" id="orb2" style="width:320px;height:320px;bottom:-90px;left:-90px;background:#0099ff;opacity:0.06;"></div>
+  <div id="progress"></div>
+
+  <!-- ════════ 1. QR 온보딩 ════════ -->
+  <section class="slide" data-sec="#00ffcc">
+    <p class="logo-text">D · G A R D E N</p>
+    <p class="slogan">당신의 업무 비트가 만드는 예술적 정원</p>
+    <div class="qr-wrap">
+      <div class="qr-frame">
+        <img src="../qr-audience.png" alt="관객 리모컨 QR" />
+      </div>
+      <p class="qr-url">d-garden.vercel.app/audience</p>
+    </div>
+    <p class="qr-cta">📱 지금 접속하세요.<br/>여러분의 손끝이 <span style="color:var(--accent); text-shadow:0 0 18px var(--accent-glow);">오른쪽 정원</span>을 움직입니다.</p>
+  </section>
+
+  <!-- ════════ 섹션 디바이더: WHY ════════ -->
+  <section class="slide divider" data-sec="#ffcc44" style="--sec:#ffcc44; --sec-glow:rgba(255,204,68,0.5);">
+    <p class="div-num">Section 01 / 04</p>
+    <h1 class="div-word">WHY</h1>
+    <p class="div-q">왜 만들었는가 — 프로젝트의 동기</p>
+    <div class="div-rule">
+      <span class="on">WHY</span><span>WHAT</span><span>HOW</span><span>IF</span>
+    </div>
+  </section>
+
+  <!-- ════════ WHY — 훅 ════════ -->
+  <section class="slide" data-sec="#ffcc44" style="--sec:#ffcc44; --sec-glow:rgba(255,204,68,0.5);">
+    <p class="section-tag">Why · 01</p>
+    <h1>저는<br/><em>개발자가 아닙니다.</em></h1>
+    <p class="lead">
+      Canvas도, 물리 시뮬레이션도, Realtime 서버도 만들어 본 적이 없습니다.
+      그런데 지금 오른쪽 화면에서는 그 세 가지가 동시에 돌아가고 있습니다.
+    </p>
+  </section>
+
+  <!-- ════════ 3. WHY — 질문 ════════ -->
+  <section class="slide" data-sec="#ffcc44" style="--sec:#ffcc44; --sec-glow:rgba(255,204,68,0.5);">
+    <p class="section-tag">Why · 02</p>
+    <h1>이 해커톤은<br/>하나의 <em>실험</em>이었습니다.</h1>
+    <div class="quote glass">
+      "AI 코딩 도구와 함께라면,<br/>
+      비개발자는 <em>어디까지</em> 만들 수 있을까?"
+    </div>
+    <p class="lead">
+      기획부터 배포까지 <strong>나흘</strong>. 사람은 방향을 정하고,
+      코드는 전부 AI가 썼습니다. 그 결과물이 D-Garden입니다.
+    </p>
+  </section>
+
+  <!-- ════════ 섹션 디바이더: WHAT ════════ -->
+  <section class="slide divider" data-sec="#00ffcc" style="--sec:#00ffcc; --sec-glow:rgba(0,245,175,0.55);">
+    <p class="div-num">Section 02 / 04</p>
+    <h1 class="div-word">WHAT</h1>
+    <p class="div-q">무엇을 만들었는가 — D-Garden</p>
+    <div class="div-rule">
+      <span>WHY</span><span class="on">WHAT</span><span>HOW</span><span>IF</span>
+    </div>
+  </section>
+
+  <!-- ════════ WHAT — 정의 ════════ -->
+  <section class="slide" data-sec="#00ffcc" style="--sec:#00ffcc; --sec-glow:rgba(0,245,175,0.55);">
+    <p class="section-tag">What · 01</p>
+    <h1>업무 리듬이<br/><em>정원</em>이 됩니다.</h1>
+    <div class="flow">
+      <div class="flow-node glass">
+        <span class="icon" style="font-size:1.6rem;">⌨️</span>
+        <div class="body">
+          <p class="title" style="font-size:clamp(0.92rem,1.6vw,1.12rem); font-weight:700;">PC 행동 패턴</p>
+          <p class="desc" style="font-size:clamp(0.74rem,1.25vw,0.9rem); color:var(--text-mid); font-weight:300;">타이핑 속도(CPM) · 오타율 · 마우스 — 키 내용은 절대 수집하지 않음</p>
+        </div>
+      </div>
+      <span class="flow-arrow">↓</span>
+      <div class="flow-node glass">
+        <span class="icon" style="font-size:1.6rem;">🧠</span>
+        <div class="body">
+          <p class="title" style="font-size:clamp(0.92rem,1.6vw,1.12rem); font-weight:700;">멘탈 스코어 <span class="mono" style="color:var(--sec);">0–100</span></p>
+          <p class="desc" style="font-size:clamp(0.74rem,1.25vw,0.9rem); color:var(--text-mid); font-weight:300;">LLM 없이 경량 알고리즘만으로 몰입·과열 판정</p>
+        </div>
+      </div>
+      <span class="flow-arrow">↓</span>
+      <div class="flow-node glass">
+        <span class="icon" style="font-size:1.6rem;">🌳</span>
+        <div class="body">
+          <p class="title" style="font-size:clamp(0.92rem,1.6vw,1.12rem); font-weight:700;">살아있는 생성형 아트</p>
+          <p class="desc" style="font-size:clamp(0.74rem,1.25vw,0.9rem); color:var(--text-mid); font-weight:300;">점수에 따라 자라고, 시들고, 불타고, 잠드는 Canvas 정원</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ 5. WHAT — 4단계 상태 ════════ -->
+  <section class="slide" data-sec="#00ffcc" style="--sec:#00ffcc; --sec-glow:rgba(0,245,175,0.55);">
+    <p class="section-tag">What · 02</p>
+    <h1>마음에는<br/><em>네 개의 계절</em>이 있습니다.</h1>
+    <div class="state-grid">
+      <div class="state-chip glass" style="--chip:#b8b8d8; --chip-glow:rgba(110,110,175,0.55);">
+        <span class="range">0 – 20</span>
+        <span class="name">💤 휴면</span>
+        <span class="hint">손이 멈추면 정원도 잿빛으로 잠듭니다</span>
+      </div>
+      <div class="state-chip glass" style="--chip:#00ffcc; --chip-glow:rgba(0,245,175,0.70);">
+        <span class="range">21 – 60</span>
+        <span class="name">🌿 최적 몰입</span>
+        <span class="hint">가장 푸르고 아름답게 자라는 골디락스 존</span>
+      </div>
+      <div class="state-chip glass" style="--chip:#ff44cc; --chip-glow:rgba(220,0,200,0.80);">
+        <span class="range">61 – 90</span>
+        <span class="name">🔥 과열</span>
+        <span class="hint">오타율 급증 — 줄기가 거칠어지고 불꽃이 튑니다</span>
+      </div>
+      <div class="state-chip glass" style="--chip:#c8a8ff; --chip-glow:rgba(160,90,230,0.55);">
+        <span class="range">91 – 100</span>
+        <span class="name">✨ 강제 쿨다운</span>
+        <span class="hint">화면이 차분해지며 심호흡을 유도합니다</span>
+      </div>
+    </div>
+    <p class="lead">글로잉나무 · 네온연꽃 · 심해덩굴 · 홀로그램다육이 — <strong>4종 테마</strong>로 나만의 정원을 고를 수 있습니다.</p>
+  </section>
+
+  <!-- ════════ 6. WHAT — 관객 인터랙션 ════════ -->
+  <section class="slide" data-sec="#00ffcc" style="--sec:#00ffcc; --sec-glow:rgba(0,245,175,0.55);">
+    <p class="section-tag">What · 03</p>
+    <h1>이 정원은 여러분도<br/><em>가꿀 수 있습니다.</em></h1>
+    <div class="card-list">
+      <div class="card glass">
+        <span class="icon">📱</span>
+        <div class="body">
+          <p class="title">QR → 모바일 리모컨</p>
+          <p class="desc">설치 없이 브라우저에서 바로 — 긍정/부정 6버튼</p>
+        </div>
+      </div>
+      <div class="card glass">
+        <span class="icon">⚡</span>
+        <div class="body">
+          <p class="title">Supabase Realtime</p>
+          <p class="desc">버튼 한 번이 0.1초 안에 발표 화면으로 날아옵니다</p>
+        </div>
+      </div>
+      <div class="card glass">
+        <span class="icon">🌱</span>
+        <div class="body">
+          <p class="title">정원이 반응합니다</p>
+          <p class="desc">응원은 양분이 되고, 야유는 정원을 시들게 합니다</p>
+        </div>
+      </div>
+    </div>
+    <div class="quote glass" style="font-size:clamp(0.95rem,1.7vw,1.25rem);">
+      지금 한번 눌러보세요 — <em>오른쪽 화면</em>을 봐 주세요 👉
+    </div>
+  </section>
+
+  <!-- ════════ 섹션 디바이더: HOW ════════ -->
+  <section class="slide divider" data-sec="#55ddff" style="--sec:#55ddff; --sec-glow:rgba(0,140,255,0.6);">
+    <p class="div-num">Section 03 / 04</p>
+    <h1 class="div-word">HOW</h1>
+    <p class="div-q">어떻게 만들었는가 — 비개발자 × AI의 작업 방식</p>
+    <div class="div-rule">
+      <span>WHY</span><span>WHAT</span><span class="on">HOW</span><span>IF</span>
+    </div>
+  </section>
+
+  <!-- ════════ HOW — AI 통제 장치 ════════ -->
+  <section class="slide" data-sec="#55ddff" style="--sec:#55ddff; --sec-glow:rgba(0,140,255,0.6);">
+    <p class="section-tag">How · 01</p>
+    <h1>비개발자가 AI를<br/><em>통제하는 법</em></h1>
+    <p class="lead">코드를 못 읽어도 품질을 지킬 수 있도록, 세 가지 장치를 먼저 세웠습니다.</p>
+    <div class="card-list">
+      <div class="card glass">
+        <span class="icon">📜</span>
+        <div class="body">
+          <p class="title"><span class="mono">.cursorrules</span> — 개발 헌법</p>
+          <p class="desc">"수치는 하드코딩 금지, 한글 주석 필수" — AI가 매번 지켜야 하는 규칙</p>
+        </div>
+      </div>
+      <div class="card glass">
+        <span class="icon">📐</span>
+        <div class="body">
+          <p class="title">SDD — <span class="mono">spec.json</span></p>
+          <p class="desc">점수·가중치·색상까지 전부 명세 파일로 — 기획자가 코드 없이 직접 튜닝</p>
+        </div>
+      </div>
+      <div class="card glass">
+        <span class="icon">✅</span>
+        <div class="body">
+          <p class="title">TDD — 자동 테스트 <span class="mono">49개</span></p>
+          <p class="desc">코드 대신 GREEN/RED 신호등을 봅니다 — 로직이 깨지면 즉시 발각</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ 8. HOW — 4일 타임라인 ════════ -->
+  <section class="slide" data-sec="#55ddff" style="--sec:#55ddff; --sec-glow:rgba(0,140,255,0.6);">
+    <p class="section-tag">How · 02</p>
+    <h1>나흘의 기록,<br/><em>커밋 36개</em></h1>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <span class="tl-date">DAY 1 — 6/9</span>
+          <span class="tl-title">v1.0 탄생</span>
+          <span class="tl-desc">멘탈 스코어 엔진(TDD) + 프랙탈 나무 + 물리 바람 시뮬레이션</span>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <span class="tl-date">DAY 3 — 6/11</span>
+          <span class="tl-title">세계관 확장 + 세상에 공개</span>
+          <span class="tl-desc">4종 테마 · 전역 입력 에이전트(브라우저 밖 타이핑도 감지) · Supabase 연동 · Vercel 배포</span>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-rail"><div class="tl-dot"></div></div>
+        <div class="tl-body">
+          <span class="tl-date">DAY 4 — 6/12 (오늘)</span>
+          <span class="tl-title">무대 준비</span>
+          <span class="tl-desc">관객 6버튼 리모컨 · Zoom식 반응 버블 · 데모용 점수 튜닝</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ 9. HOW — 역설 ════════ -->
+  <section class="slide" data-sec="#55ddff" style="--sec:#55ddff; --sec-glow:rgba(0,140,255,0.6);">
+    <p class="section-tag">How · 03</p>
+    <h1>가장 화려한 화면을 만든 건<br/><em>가장 단순한 기술</em>이었습니다.</h1>
+    <div class="stat-row">
+      <div class="stat glass">
+        <span class="num">0</span>
+        <span class="label">프레임워크<br/>(Vanilla JS)</span>
+      </div>
+      <div class="stat glass">
+        <span class="num">0</span>
+        <span class="label">LLM API 호출<br/>(경량 알고리즘)</span>
+      </div>
+      <div class="stat glass">
+        <span class="num">49</span>
+        <span class="label">자동 테스트<br/>(품질 신호등)</span>
+      </div>
+    </div>
+    <p class="lead">
+      스프링 물리, 3중 주파수 바람, 프랙탈 생장 — 전부 <strong>순수 웹 기술</strong>입니다.
+      비개발자 혼자서는 불가능했지만, <strong>AI와 함께라면 나흘이면 충분</strong>했습니다.
+    </p>
+  </section>
+
+  <!-- ════════ 섹션 디바이더: IF ════════ -->
+  <section class="slide divider" data-sec="#ff55cc" style="--sec:#ff55cc; --sec-glow:rgba(255,60,150,0.6);">
+    <p class="div-num">Section 04 / 04</p>
+    <h1 class="div-word">IF</h1>
+    <p class="div-q">발전시킨다면 — 이 프로젝트가 가져올 효용</p>
+    <div class="div-rule">
+      <span>WHY</span><span>WHAT</span><span>HOW</span><span class="on">IF</span>
+    </div>
+  </section>
+
+  <!-- ════════ IF — 비전 ════════ -->
+  <section class="slide" data-sec="#ff55cc" style="--sec:#ff55cc; --sec-glow:rgba(255,60,150,0.6);">
+    <p class="section-tag">If · 01</p>
+    <h1>개인의 정원에서<br/><em>팀의 숲</em>으로</h1>
+    <div class="card-list">
+      <div class="card glass">
+        <span class="icon">🌲</span>
+        <div class="body">
+          <p class="title">팀 웰니스 대시보드</p>
+          <p class="desc">팀원 각자의 나무가 모여 하나의 숲 — 사무실 한쪽 화면에 앰비언트로</p>
+        </div>
+      </div>
+      <div class="card glass">
+        <span class="icon">🕶️</span>
+        <div class="body">
+          <p class="title">철저한 익명</p>
+          <p class="desc">키 내용도, 이름도 수집하지 않음 — 숲의 색만 보고 팀의 온도를 느낍니다</p>
+        </div>
+      </div>
+      <div class="card glass">
+        <span class="icon">🔥</span>
+        <div class="body">
+          <p class="title">번아웃 조기 신호</p>
+          <p class="desc">숲이 보라색으로 물들면, 그 주는 쉬어가야 할 때라는 뜻입니다</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ 11. 클로징 ════════ -->
+  <section class="slide" data-sec="#ff55cc" style="--sec:#ff55cc; --sec-glow:rgba(255,60,150,0.6);">
+    <p class="section-tag">If · 02</p>
+    <h1>AI 시대,<br/>만들고 싶은 사람이<br/><em>만드는 사람</em>이 됩니다.</h1>
+    <div class="qr-wrap" style="flex-direction:row; gap:clamp(16px,2.5vw,28px); align-items:center;">
+      <div class="qr-frame" style="animation:none; box-shadow:0 0 0 1px rgba(255,255,255,0.15), 0 0 45px var(--sec-glow), 0 0 120px rgba(255,60,150,0.22);">
+        <img src="../qr-audience.png" alt="관객 리모컨 QR" style="width:clamp(110px,16vh,170px);" />
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <p class="qr-url" style="color:var(--sec); text-shadow:0 0 18px var(--sec-glow);">d-garden.vercel.app</p>
+        <p class="lead" style="font-size:clamp(0.82rem,1.4vw,1rem);">감사합니다.<br/>마지막으로 제 정원에 물 한 번씩만 부탁드립니다 🌱</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 하단 내비게이션 -->
+  <div id="nav">
+    <span class="mono" id="page-label">01 / 11</span>
+    <div id="dots"></div>
+    <span class="mono" id="sec-label">INTRO</span>
+  </div>
+
+  <script>
+    // ── 슬라이드 내비게이션 ──
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const dotsEl = document.getElementById('dots');
+    const SECTION_NAMES = ['COVER', 'WHY', 'WHY', 'WHY', 'WHAT', 'WHAT', 'WHAT', 'WHAT', 'HOW', 'HOW', 'HOW', 'HOW', 'IF', 'IF', 'IF'];
+    let cur = 0;
+
+    slides.forEach(() => {
+      const d = document.createElement('div');
+      d.className = 'dot';
+      dotsEl.appendChild(d);
+    });
+    const dots = Array.from(dotsEl.children);
+
+    function show(i) {
+      cur = Math.max(0, Math.min(slides.length - 1, i));
+      slides.forEach((s, k) => s.classList.toggle('active', k === cur));
+      dots.forEach((d, k) => d.classList.toggle('on', k === cur));
+
+      // 섹션 색을 진행바·도트·배경 오브에 반영
+      const sec = slides[cur].dataset.sec || '#00ffcc';
+      document.documentElement.style.setProperty('--sec-now', sec);
+      document.getElementById('progress').style.width = ((cur + 1) / slides.length * 100) + '%';
+      document.getElementById('orb1').style.background = sec;
+      document.getElementById('page-label').textContent =
+        String(cur + 1).padStart(2, '0') + ' / ' + String(slides.length).padStart(2, '0');
+      document.getElementById('sec-label').textContent = SECTION_NAMES[cur] || '';
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(cur + 1); }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp')                     { e.preventDefault(); show(cur - 1); }
+      if (e.key === 'Home') show(0);
+      if (e.key === 'End')  show(slides.length - 1);
+    });
+    // 클릭: 화면 우측 70% = 다음, 좌측 30% = 이전
+    document.addEventListener('click', (e) => {
+      if (e.clientX < window.innerWidth * 0.3) show(cur - 1);
+      else show(cur + 1);
+    });
+
+    show(0);
+
+    // ── 배경 부유 파티클: D-Garden 씨앗 톤 (은은하게, 주인공과 경쟁 금지) ──
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, seeds = [];
+
+    function resize() {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const SEED_COUNT = 26;
+    for (let i = 0; i < SEED_COUNT; i++) {
+      seeds.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 0.8 + Math.random() * 1.8,
+        vx: (Math.random() - 0.5) * 0.12,
+        vy: -0.06 - Math.random() * 0.16,
+        phase: Math.random() * Math.PI * 2,
+        alpha: 0.10 + Math.random() * 0.22,
+      });
+    }
+
+    function tick(t) {
+      ctx.clearRect(0, 0, W, H);
+      const sec = getComputedStyle(document.documentElement).getPropertyValue('--sec-now').trim() || '#00ffcc';
+      for (const s of seeds) {
+        s.x += s.vx + Math.sin(t * 0.0006 + s.phase) * 0.08;
+        s.y += s.vy;
+        if (s.y < -10) { s.y = H + 10; s.x = Math.random() * W; }
+        if (s.x < -10) s.x = W + 10;
+        if (s.x > W + 10) s.x = -10;
+        const tw = 0.6 + 0.4 * Math.sin(t * 0.0014 + s.phase * 3);
+        ctx.globalAlpha = s.alpha * tw;
+        ctx.fillStyle = sec;
+        ctx.shadowColor = sec;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  </script>
+
+</body>
+</html>
