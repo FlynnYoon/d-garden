@@ -314,13 +314,17 @@ const Renderer = (() => {
 
     // ── 잎 3중 주파수 Flutter ────────────────────────────────────
     const leafPhase   = x * 0.011 + y * 0.009;
-    // 펄럭임 진폭·속도 — 과하면 시선을 빼앗아 집중을 방해하므로 spec에서 절제된 값으로 관리
-    const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.035) * (1 - cooldownW * 0.82);
-    const fs    = window.SPEC.LEAF_FLUTTER_SPEED || 0.65;
+    const optimalW    = getStateWeight('OPTIMAL');
+    // OPTIMAL: 귀여운 통통 튀기는 느낌 — 진폭 1.8×, 약간 빠른 주파수
+    const cuteBoost   = 1 + optimalW * 0.8;
+    const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.035) * (1 - cooldownW * 0.82) * cuteBoost;
+    const fs    = (window.SPEC.LEAF_FLUTTER_SPEED || 0.65) * (1 + optimalW * 0.35);
     const flt1  = Math.sin(time * 0.0042 * fs + leafPhase)        * 0.28;
     const flt2  = Math.sin(time * 0.0098 * fs + leafPhase * 1.55) * 0.14;
-    const flt3  = Math.sin(time * 0.0200 * fs + leafPhase * 0.80) * 0.08;
-    const flutter = flutterBase * (flt1 + flt2 + flt3);
+    // OPTIMAL: 고주파 미세 떨림 추가 (콩닥콩닥하는 느낌)
+    const flt3  = Math.sin(time * 0.0200 * fs + leafPhase * 0.80) * (0.08 + optimalW * 0.10);
+    const flt4  = Math.sin(time * 0.0380 * fs + leafPhase * 2.10) * optimalW * 0.07;
+    const flutter = flutterBase * (flt1 + flt2 + flt3 + flt4);
 
     const len = targetSize * eased;
     const wid = len * 0.36; // 약 2.8:1 — 너무 뾰족하지 않고 통통한 잎
