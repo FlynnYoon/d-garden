@@ -312,19 +312,12 @@ const Renderer = (() => {
     const bp          = breathPulse(time);
     const eased       = springEase(birthProgress);
 
-    // ── 잎 3중 주파수 Flutter ────────────────────────────────────
+    // ── 잎 Flutter: 단일 사인파 (맥놀이 현상 방지) ───────────────
+    // 다중 주파수 합성 시 beating 효과로 시각적으로 더 빠르게 보이는 문제 제거
     const leafPhase   = x * 0.011 + y * 0.009;
-    const optimalW    = getStateWeight('OPTIMAL');
-    // OPTIMAL: 극도로 차분한 흔들림 (1/10 수준)
-    const cuteBoost   = 1 + optimalW * 0.0;
-    const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.035) * (1 - cooldownW * 0.82) * cuteBoost;
-    const fs    = (window.SPEC.LEAF_FLUTTER_SPEED || 0.65) * (1 + optimalW * 0.35);
-    const flt1  = Math.sin(time * 0.0008 * fs + leafPhase)        * 0.55;
-    const flt2  = Math.sin(time * 0.0018 * fs + leafPhase * 1.55) * 0.30;
-    // OPTIMAL: 부드러운 고주파 잔떨림
-    const flt3  = Math.sin(time * 0.0038 * fs + leafPhase * 0.80) * (0.15 + optimalW * 0.12);
-    const flt4  = Math.sin(time * 0.0070 * fs + leafPhase * 2.10) * optimalW * 0.08;
-    const flutter = flutterBase * (flt1 + flt2 + flt3 + flt4);
+    const flutterBase = (window.SPEC.LEAF_FLUTTER_AMPLITUDE || 0.035) * (1 - cooldownW * 0.82);
+    // 한 주기 약 8~10초: 바람에 느긋하게 흔들리는 느낌
+    const flutter = flutterBase * Math.sin(time * 0.00035 + leafPhase);
 
     const len = targetSize * eased;
     const wid = len * 0.36; // 약 2.8:1 — 너무 뾰족하지 않고 통통한 잎
