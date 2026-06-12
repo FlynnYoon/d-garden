@@ -46,13 +46,18 @@ const EditorBridge = (() => {
       return;
     }
 
-    setStatus(false, '● EDITOR …');
+    // 연결 전까지 숨김 유지 — 연결 성공 시에만 노출
     _source = new EventSource(url);
 
-    _source.onopen  = () => setStatus(true,  '● EDITOR LINKED');
+    _source.onopen  = () => {
+      if (_statusEl || (_statusEl = document.getElementById('editor-status'))) {
+        _statusEl.style.display = ''; // 연결 성공 시에만 표시
+      }
+      setStatus(true, '● EDITOR LINKED');
+    };
     _source.onerror = () => {
-      // 확장 미실행/Cursor 종료 상태 — EventSource가 알아서 재접속을 반복한다
-      if (_connected || _statusEl) setStatus(false, '● EDITOR OFFLINE');
+      // 에이전트 미실행 상태 — 표시하지 않고 조용히 재접속 대기
+      if (_connected) setStatus(false, '● EDITOR OFFLINE');
     };
 
     _source.onmessage = (ev) => {
