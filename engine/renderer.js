@@ -464,9 +464,10 @@ const Renderer = (() => {
 
       // ── 4번째·5번째 잎: 제거 (성능 최적화) ──
 
-      // ── 잎 끝 반짝임 (5% 확률) ──
-      if (leafProgress > 0.9 && seededRandom(tip.id * 113 + 29) > 0.95) {
-        const sparkPhase = Math.sin(time * 0.007 + tip.x * 0.03 + tip.y * 0.025);
+      // ── 잎 끝 반짝임 (OPTIMAL 제외, 5% 확률) ──
+      const optimalW_spark = getStateWeight('OPTIMAL');
+      if (optimalW_spark < 0.5 && leafProgress > 0.9 && seededRandom(tip.id * 113 + 29) > 0.95) {
+        const sparkPhase = Math.sin(time * 0.0012 + tip.x * 0.03 + tip.y * 0.025);
         if (sparkPhase > 0.5) {
           ctx.save();
           ctx.globalAlpha = (sparkPhase - 0.5) * 2 * 0.65 * (1 - cooldownW * 0.7);
@@ -505,12 +506,12 @@ const Renderer = (() => {
       const tip = cand[Math.floor(i * step)];
       const sr1 = seededRandom(tip.id * 91 + 7);
       const len = canvas.height * (0.09 + sr1 * 0.13) * tip.gf;
-      // 바람에 맞춰 아래끝이 천천히 흔들림
-      const sway = Math.sin(time * 0.0006 + tip.x * 0.01 + sr1 * 6) * len * 0.16;
-      const ex  = tip.x + sway,        ey  = tip.y + len;
-      const cpx = tip.x + sway * 0.35, cpy = tip.y + len * 0.55;
+      // 바람에 맞춰 아래끝이 천천히 흔들림 (OPTIMAL에서는 고정)
+      const optimalW_td = getStateWeight('OPTIMAL');
+      const tdSway = (1 - optimalW_td) * Math.sin(time * 0.0006 + tip.x * 0.01 + sr1 * 6) * len * 0.16;
+      const ex  = tip.x + tdSway,        ey  = tip.y + len;
+      const cpx = tip.x + tdSway * 0.35, cpy = tip.y + len * 0.55;
 
-      // 덩굴 가닥: 위는 흐리고 아래끝으로 갈수록 밝아짐 (영혼의 나무 특유의 빛)
       const g = ctx.createLinearGradient(tip.x, tip.y, ex, ey);
       g.addColorStop(0, hexToRgba(ep.tipColorB, 0.08));
       g.addColorStop(1, hexToRgba(ep.orbSpecial, 0.50));
@@ -523,8 +524,9 @@ const Renderer = (() => {
       ctx.quadraticCurveTo(cpx, cpy, ex, ey);
       ctx.stroke();
 
-      // 가닥을 타고 흘러내리는 빛 펄스 (가닥마다 위상이 다름)
-      const pt = (time * 0.00045 + sr1 * 7) % 1;
+      // 빛 펄스 — OPTIMAL에서 대폭 느리게
+      const pulseSpeed = 0.00045 * (1 - optimalW_td * 0.85);
+      const pt = (time * pulseSpeed + sr1 * 7) % 1;
       const px = quadAt(tip.x, cpx, ex, pt);
       const py = quadAt(tip.y, cpy, ey, pt);
       ctx.globalAlpha = 0.85 * Math.sin(pt * Math.PI);
