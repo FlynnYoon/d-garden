@@ -70,6 +70,11 @@ const RealtimeClient = (() => {
           } else {
             Tracker.onCrowdMessage(text);
           }
+
+          // 나무 화면에 Zoom 스타일 플로팅 버블 표시
+          if (typeof window.spawnCrowdBubble === 'function') {
+            window.spawnCrowdBubble(text, payload.sentiment);
+          }
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {

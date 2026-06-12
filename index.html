@@ -183,6 +183,34 @@
       background: rgba(255,255,255,0.08);
       box-shadow: 0 0 18px var(--state-glow);
     }
+
+    /* ── 관객 리액션 플로팅 버블 (Zoom 스타일) ── */
+    #crowd-float-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 300;
+      overflow: hidden;
+    }
+    @keyframes crowdFloat {
+      0%   { transform: translateY(0)    translateX(0)             scale(1);    opacity: 1; }
+      20%  { transform: translateY(-12vh) translateX(var(--sw1))   scale(1.12); opacity: 1; }
+      60%  { transform: translateY(-50vh) translateX(var(--sw2))   scale(1.0);  opacity: 0.80; }
+      100% { transform: translateY(-92vh) translateX(var(--sw3))   scale(0.7);  opacity: 0; }
+    }
+    .crowd-bubble {
+      position: absolute;
+      bottom: 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      animation: crowdFloat 3.2s cubic-bezier(0.22, 0.68, 0, 1.1) forwards;
+      will-change: transform, opacity;
+    }
+    .crowd-bubble .cb-icon  { font-size: 2.6rem; line-height: 1; filter: drop-shadow(0 0 12px var(--cb-glow)); }
+    .crowd-bubble .cb-label { font-family: 'Space Mono', monospace; font-size: 0.75rem; font-weight: 700;
+                               color: var(--cb-clr); text-shadow: 0 0 12px var(--cb-glow); letter-spacing: 0.04em; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -192,6 +220,9 @@
 
   <!-- 화면 가장자리 상태 글로우 -->
   <div class="edge-glow" id="edge-glow"></div>
+
+  <!-- 관객 리액션 플로팅 버블 레이어 -->
+  <div id="crowd-float-layer"></div>
 
   <!-- 배경 빛 오브: 글래스 패널(우측 점수판·좌하단 CPM) 뒤를 밝힘 -->
   <div class="bg-orb" style="width:340px;height:340px;top:32%;right:-90px;"></div>
@@ -278,6 +309,45 @@
 
   <!-- 스크립트 로딩 순서: spec → garden → tracker → renderer → main -->
   <script>
+    // 관객 리액션 버블 (나무 화면에 Zoom 스타일로 떠오름)
+    const _CROWD_BUBBLE_MAP = {
+      '오~':   { icon: '😮', clr: '#00ff99', glow: 'rgba(0,255,140,0.85)' },
+      '와우':  { icon: '🤩', clr: '#00ffcc', glow: 'rgba(0,255,200,0.85)' },
+      '굿':    { icon: '👍', clr: '#00ff99', glow: 'rgba(0,255,140,0.85)' },
+      '에이':  { icon: '😒', clr: '#ee55ff', glow: 'rgba(238,85,255,0.85)' },
+      '별로':  { icon: '👎', clr: '#dd44ff', glow: 'rgba(220,68,255,0.85)' },
+      '흠...': { icon: '🤔', clr: '#cc44ff', glow: 'rgba(200,68,255,0.85)' },
+    };
+    const _floatLayer = () => document.getElementById('crowd-float-layer');
+
+    window.spawnCrowdBubble = function(text, sentiment) {
+      const cfg = _CROWD_BUBBLE_MAP[text] || (sentiment === 'pos'
+        ? { icon: '✨', clr: '#00ff99', glow: 'rgba(0,255,140,0.85)' }
+        : { icon: '💨', clr: '#ee55ff', glow: 'rgba(238,85,255,0.85)' });
+      const layer = _floatLayer();
+      if (!layer) return;
+
+      const count = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          const xPct = 10 + Math.random() * 75;
+          const el = document.createElement('div');
+          el.className = 'crowd-bubble';
+          el.style.cssText = [
+            `left:${xPct}%`,
+            `--sw1:${(Math.random()-0.5)*28}px`,
+            `--sw2:${(Math.random()-0.5)*36}px`,
+            `--sw3:${(Math.random()-0.5)*20}px`,
+            `--cb-clr:${cfg.clr}`,
+            `--cb-glow:${cfg.glow}`,
+          ].join(';');
+          el.innerHTML = `<span class="cb-icon">${cfg.icon}</span><span class="cb-label">${text}</span>`;
+          layer.appendChild(el);
+          el.addEventListener('animationend', () => el.remove());
+        }, i * 130);
+      }
+    };
+
     // 1단계: spec.json 로드 후 전역 window.SPEC 설정
     async function bootstrap() {
       try {
