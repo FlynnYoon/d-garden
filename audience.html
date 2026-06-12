@@ -62,8 +62,28 @@
       overflow: hidden;
       -webkit-tap-highlight-color: transparent;
     }
+    /* 반응 아이콘 배지 — 색 + 모양으로 6종 구분 (발표장 식별용) */
+    .btn-icon-wrap {
+      width: clamp(50px, 14vw, 60px);
+      height: clamp(50px, 14vw, 60px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: color-mix(in srgb, var(--rc-color) 30%, transparent);
+      border: 2.5px solid color-mix(in srgb, var(--rc-color) 75%, transparent);
+      box-shadow: 0 0 22px var(--rc-glow), inset 0 0 14px color-mix(in srgb, var(--rc-color) 22%, transparent);
+      pointer-events: none;
+    }
+    .rc-shape-star    { clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); border-radius: 0; }
+    .rc-shape-circle  { border-radius: 50%; }
+    .rc-shape-square  { border-radius: 16px; }
+    .rc-shape-hex     { clip-path: polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%); border-radius: 0; }
+    .rc-shape-pill    { width: clamp(58px, 16vw, 68px); height: clamp(42px, 12vw, 50px); border-radius: 999px; }
+    .rc-shape-diamond { width: clamp(44px, 12vw, 52px); height: clamp(44px, 12vw, 52px); border-radius: 10px; transform: rotate(45deg); }
+    .rc-shape-diamond .btn-emoji { transform: rotate(-45deg); }
+
     .remote-btn .btn-emoji {
-      font-size: clamp(1.5rem, 5vw, 2rem);
+      font-size: clamp(1.65rem, 5.5vw, 2.15rem);
       line-height: 1;
       pointer-events: none;
     }
@@ -86,89 +106,67 @@
       pointer-events: none;
     }
 
-    /* ── 개성 버튼 6종 ── */
+    /* ── 개성 버튼 6종 (색·모양 완전 분리 — spec.json CROWD_REACTIONS와 동기화) ── */
 
-    /* ── 긍정 3종 : 파랑 계열 (스카이→로열→틸) ── */
-
-    /* 오~ : 스카이 블루 — 가볍고 들뜬 놀람 */
-    .btn-oh {
-      background: linear-gradient(145deg, rgba(0,200,255,0.16) 0%, rgba(0,120,220,0.08) 100%);
-      border-color: rgba(0,200,255,0.34);
-      color: #00c8ff;
-      box-shadow: 0 2px 20px rgba(0,200,255,0.10), inset 0 1px 0 rgba(0,200,255,0.14);
-      text-shadow: 0 0 18px rgba(0,200,255,0.85);
-    }
-    .btn-oh:active {
-      background: linear-gradient(145deg, rgba(0,200,255,0.36) 0%, rgba(0,150,255,0.24) 100%);
-      border-color: rgba(0,200,255,0.88); box-shadow: 0 0 36px rgba(0,200,255,0.42);
-    }
-
-    /* 와우 : 로열 블루 — 깊고 감탄스러운 찬사 */
+    /* 와우 : 금색 별 — 레전드 감탄 */
     .btn-wow {
-      background: linear-gradient(145deg, rgba(60,140,255,0.16) 0%, rgba(20,60,200,0.08) 100%);
-      border-color: rgba(60,140,255,0.34);
-      color: #3c8cff;
-      box-shadow: 0 2px 20px rgba(60,140,255,0.10), inset 0 1px 0 rgba(60,140,255,0.14);
-      text-shadow: 0 0 18px rgba(60,140,255,0.85);
+      --rc-color: #FFD400; --rc-glow: rgba(255,212,0,0.9);
+      background: linear-gradient(145deg, rgba(255,212,0,0.20) 0%, rgba(180,120,0,0.08) 100%);
+      border-color: rgba(255,212,0,0.45); color: #FFD400;
+      box-shadow: 0 2px 22px rgba(255,212,0,0.18), inset 0 1px 0 rgba(255,212,0,0.18);
+      text-shadow: 0 0 20px rgba(255,212,0,0.95);
     }
-    .btn-wow:active {
-      background: linear-gradient(145deg, rgba(60,140,255,0.36) 0%, rgba(30,80,240,0.24) 100%);
-      border-color: rgba(60,140,255,0.88); box-shadow: 0 0 36px rgba(60,140,255,0.42);
-    }
+    .btn-wow:active { background: linear-gradient(145deg, rgba(255,212,0,0.42) 0%, rgba(220,160,0,0.28) 100%); border-color: rgba(255,212,0,0.95); box-shadow: 0 0 40px rgba(255,212,0,0.55); }
 
-    /* 굿 : 틸/아쿠아 — 시원하고 깔끔한 인정 */
+    /* 오~ : 시안 원 — 놀란 대박 */
+    .btn-oh {
+      --rc-color: #00E8FF; --rc-glow: rgba(0,232,255,0.9);
+      background: linear-gradient(145deg, rgba(0,232,255,0.20) 0%, rgba(0,140,200,0.08) 100%);
+      border-color: rgba(0,232,255,0.45); color: #00E8FF;
+      box-shadow: 0 2px 22px rgba(0,232,255,0.18), inset 0 1px 0 rgba(0,232,255,0.18);
+      text-shadow: 0 0 20px rgba(0,232,255,0.95);
+    }
+    .btn-oh:active { background: linear-gradient(145deg, rgba(0,232,255,0.42) 0%, rgba(0,180,230,0.28) 100%); border-color: rgba(0,232,255,0.95); box-shadow: 0 0 40px rgba(0,232,255,0.55); }
+
+    /* 굿 : 라임 사각 — 엄지 인정 */
     .btn-good {
-      background: linear-gradient(145deg, rgba(0,220,200,0.16) 0%, rgba(0,150,160,0.08) 100%);
-      border-color: rgba(0,220,200,0.34);
-      color: #00dcc8;
-      box-shadow: 0 2px 20px rgba(0,220,200,0.10), inset 0 1px 0 rgba(0,220,200,0.14);
-      text-shadow: 0 0 18px rgba(0,220,200,0.85);
+      --rc-color: #32FF72; --rc-glow: rgba(50,255,114,0.9);
+      background: linear-gradient(145deg, rgba(50,255,114,0.20) 0%, rgba(0,180,80,0.08) 100%);
+      border-color: rgba(50,255,114,0.45); color: #32FF72;
+      box-shadow: 0 2px 22px rgba(50,255,114,0.18), inset 0 1px 0 rgba(50,255,114,0.18);
+      text-shadow: 0 0 20px rgba(50,255,114,0.95);
     }
-    .btn-good:active {
-      background: linear-gradient(145deg, rgba(0,220,200,0.36) 0%, rgba(0,180,170,0.24) 100%);
-      border-color: rgba(0,220,200,0.88); box-shadow: 0 0 36px rgba(0,220,200,0.42);
-    }
+    .btn-good:active { background: linear-gradient(145deg, rgba(50,255,114,0.42) 0%, rgba(0,200,90,0.28) 100%); border-color: rgba(50,255,114,0.95); box-shadow: 0 0 40px rgba(50,255,114,0.55); }
 
-    /* ── 부정 3종 : 불꽃 계열 (핫레드→오렌지→앰버) ── */
-
-    /* 에이 : 핫 레드 — 강하고 직접적인 실망 */
+    /* 에이 : 레드 육각 — 실망·분노 */
     .btn-ei {
-      background: linear-gradient(145deg, rgba(255,50,80,0.16) 0%, rgba(180,0,40,0.08) 100%);
-      border-color: rgba(255,50,80,0.34);
-      color: #ff3250;
-      box-shadow: 0 2px 20px rgba(255,50,80,0.10), inset 0 1px 0 rgba(255,50,80,0.14);
-      text-shadow: 0 0 18px rgba(255,50,80,0.85);
+      --rc-color: #FF2244; --rc-glow: rgba(255,34,68,0.9);
+      background: linear-gradient(145deg, rgba(255,34,68,0.22) 0%, rgba(160,0,30,0.08) 100%);
+      border-color: rgba(255,34,68,0.48); color: #FF2244;
+      box-shadow: 0 2px 22px rgba(255,34,68,0.20), inset 0 1px 0 rgba(255,34,68,0.18);
+      text-shadow: 0 0 20px rgba(255,34,68,0.95);
     }
-    .btn-ei:active {
-      background: linear-gradient(145deg, rgba(255,50,80,0.38) 0%, rgba(200,0,50,0.24) 100%);
-      border-color: rgba(255,50,80,0.88); box-shadow: 0 0 36px rgba(255,50,80,0.42);
-    }
+    .btn-ei:active { background: linear-gradient(145deg, rgba(255,34,68,0.45) 0%, rgba(200,0,40,0.30) 100%); border-color: rgba(255,34,68,0.95); box-shadow: 0 0 40px rgba(255,34,68,0.55); }
 
-    /* 별로 : 오렌지 — 무기력하고 지루한 노잼 */
+    /* 별로 : 오렌지 알약 — 노재·별로 */
     .btn-meh {
-      background: linear-gradient(145deg, rgba(255,140,0,0.16) 0%, rgba(180,80,0,0.08) 100%);
-      border-color: rgba(255,140,0,0.34);
-      color: #ff8c00;
-      box-shadow: 0 2px 20px rgba(255,140,0,0.10), inset 0 1px 0 rgba(255,140,0,0.14);
-      text-shadow: 0 0 18px rgba(255,140,0,0.85);
+      --rc-color: #FF7700; --rc-glow: rgba(255,119,0,0.9);
+      background: linear-gradient(145deg, rgba(255,119,0,0.22) 0%, rgba(180,70,0,0.08) 100%);
+      border-color: rgba(255,119,0,0.48); color: #FF7700;
+      box-shadow: 0 2px 22px rgba(255,119,0,0.20), inset 0 1px 0 rgba(255,119,0,0.18);
+      text-shadow: 0 0 20px rgba(255,119,0,0.95);
     }
-    .btn-meh:active {
-      background: linear-gradient(145deg, rgba(255,140,0,0.38) 0%, rgba(200,100,0,0.24) 100%);
-      border-color: rgba(255,140,0,0.88); box-shadow: 0 0 36px rgba(255,140,0,0.42);
-    }
+    .btn-meh:active { background: linear-gradient(145deg, rgba(255,119,0,0.45) 0%, rgba(200,80,0,0.30) 100%); border-color: rgba(255,119,0,0.95); box-shadow: 0 0 40px rgba(255,119,0,0.55); }
 
-    /* 흠... : 앰버/골드 — 차갑게 의심하는 눈빛 */
+    /* 흠... : 보라 마름모 — 의심·좀 그렇다 */
     .btn-hmm {
-      background: linear-gradient(145deg, rgba(220,180,0,0.16) 0%, rgba(160,100,0,0.08) 100%);
-      border-color: rgba(220,180,0,0.34);
-      color: #dcb400;
-      box-shadow: 0 2px 20px rgba(220,180,0,0.10), inset 0 1px 0 rgba(220,180,0,0.14);
-      text-shadow: 0 0 18px rgba(220,180,0,0.85);
+      --rc-color: #AA55FF; --rc-glow: rgba(170,85,255,0.9);
+      background: linear-gradient(145deg, rgba(170,85,255,0.22) 0%, rgba(100,40,180,0.08) 100%);
+      border-color: rgba(170,85,255,0.48); color: #AA55FF;
+      box-shadow: 0 2px 22px rgba(170,85,255,0.20), inset 0 1px 0 rgba(170,85,255,0.18);
+      text-shadow: 0 0 20px rgba(170,85,255,0.95);
     }
-    .btn-hmm:active {
-      background: linear-gradient(145deg, rgba(220,180,0,0.38) 0%, rgba(180,130,0,0.24) 100%);
-      border-color: rgba(220,180,0,0.88); box-shadow: 0 0 36px rgba(220,180,0,0.42);
-    }
+    .btn-hmm:active { background: linear-gradient(145deg, rgba(170,85,255,0.45) 0%, rgba(120,50,220,0.30) 100%); border-color: rgba(170,85,255,0.95); box-shadow: 0 0 40px rgba(170,85,255,0.55); }
 
     /* 전송 시 펄스 링 애니메이션 */
     @keyframes ripple {
@@ -275,17 +273,17 @@
         </div>
         <div class="grid grid-cols-3 gap-3 flex-1">
           <button class="remote-btn btn-wow" onclick="send('와우', 'pos')">
-            <span class="btn-emoji">🤩</span>
+            <span class="btn-icon-wrap rc-shape-star"><span class="btn-emoji">🤩</span></span>
             <span class="btn-text">와우</span>
             <span class="btn-sub">레전드</span>
           </button>
           <button class="remote-btn btn-oh" onclick="send('오~', 'pos')">
-            <span class="btn-emoji">😮</span>
+            <span class="btn-icon-wrap rc-shape-circle"><span class="btn-emoji">😮</span></span>
             <span class="btn-text">오~</span>
             <span class="btn-sub">대박이야</span>
           </button>
           <button class="remote-btn btn-good" onclick="send('굿', 'pos')">
-            <span class="btn-emoji">👍</span>
+            <span class="btn-icon-wrap rc-shape-square"><span class="btn-emoji">👍</span></span>
             <span class="btn-text">굿</span>
             <span class="btn-sub">잘했어</span>
           </button>
@@ -304,17 +302,17 @@
         </div>
         <div class="grid grid-cols-3 gap-3 flex-1">
           <button class="remote-btn btn-ei" onclick="send('에이', 'neg')">
-            <span class="btn-emoji">😤</span>
+            <span class="btn-icon-wrap rc-shape-hex"><span class="btn-emoji">😤</span></span>
             <span class="btn-text">에이</span>
             <span class="btn-sub">실망이야</span>
           </button>
           <button class="remote-btn btn-meh" onclick="send('별로', 'neg')">
-            <span class="btn-emoji">🥱</span>
+            <span class="btn-icon-wrap rc-shape-pill"><span class="btn-emoji">👎</span></span>
             <span class="btn-text">별로</span>
             <span class="btn-sub">노잼이네</span>
           </button>
           <button class="remote-btn btn-hmm" onclick="send('흠...', 'neg')">
-            <span class="btn-emoji">🙄</span>
+            <span class="btn-icon-wrap rc-shape-diamond"><span class="btn-emoji">🙄</span></span>
             <span class="btn-text">흠...</span>
             <span class="btn-sub">좀 그렇다</span>
           </button>

@@ -45,6 +45,14 @@
   "BACKSPACE_RATIO_THRESHOLD": 0.20,
   "POSITIVE_KEYWORDS": ["오~", "와우", "굿", "화이팅", "이겨라", "최고야", "잘한다", "대박", "멋있어", "짱이다", "파이팅", "완벽해", "응원해", "굳", "킹받", "레전드", "갓"],
   "NEGATIVE_KEYWORDS": ["흠...", "에이", "별로", "지루해", "못해", "실망", "노잼", "졌다", "힘들겠다", "그게뭐야", "별로다", "망했다"],
+  "CROWD_REACTIONS": {
+    "와우":  { "sentiment": "pos", "emoji": "🤩", "sub": "레전드",    "color": "#FFD400", "glow": "rgba(255,212,0,0.95)",   "shape": "star" },
+    "오~":   { "sentiment": "pos", "emoji": "😮", "sub": "대박이야",  "color": "#00E8FF", "glow": "rgba(0,232,255,0.95)",   "shape": "circle" },
+    "굿":    { "sentiment": "pos", "emoji": "👍", "sub": "잘했어",    "color": "#32FF72", "glow": "rgba(50,255,114,0.95)",  "shape": "square" },
+    "에이":  { "sentiment": "neg", "emoji": "😤", "sub": "실망이야",  "color": "#FF2244", "glow": "rgba(255,34,68,0.95)",   "shape": "hex" },
+    "별로":  { "sentiment": "neg", "emoji": "👎", "sub": "노잼이네",  "color": "#FF7700", "glow": "rgba(255,119,0,0.95)",   "shape": "pill" },
+    "흠...": { "sentiment": "neg", "emoji": "🙄", "sub": "좀 그렇다", "color": "#AA55FF", "glow": "rgba(170,85,255,0.95)", "shape": "diamond" }
+  },
   "STATES": {
     "DORMANT":  { "min": 0,  "max": 20,  "color": "Gray" },
     "OPTIMAL":  { "min": 21, "max": 60,  "color": "Emerald" },

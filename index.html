@@ -208,7 +208,21 @@
       animation: crowdFloat 3.2s cubic-bezier(0.22, 0.68, 0, 1.1) forwards;
       will-change: transform, opacity;
     }
-    .crowd-bubble .cb-icon  { font-size: 2.6rem; line-height: 1; filter: drop-shadow(0 0 12px var(--cb-glow)); }
+    .crowd-bubble .cb-badge {
+      width: 64px; height: 64px;
+      display: flex; align-items: center; justify-content: center;
+      background: color-mix(in srgb, var(--cb-clr) 32%, transparent);
+      border: 3px solid color-mix(in srgb, var(--cb-clr) 78%, transparent);
+      box-shadow: 0 0 28px var(--cb-glow), inset 0 0 16px color-mix(in srgb, var(--cb-clr) 24%, transparent);
+    }
+    .crowd-bubble .rc-shape-star    { clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); border-radius: 0; }
+    .crowd-bubble .rc-shape-circle  { border-radius: 50%; }
+    .crowd-bubble .rc-shape-square  { border-radius: 18px; }
+    .crowd-bubble .rc-shape-hex     { clip-path: polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%); border-radius: 0; }
+    .crowd-bubble .rc-shape-pill    { width: 72px; height: 52px; border-radius: 999px; }
+    .crowd-bubble .rc-shape-diamond { width: 52px; height: 52px; border-radius: 12px; transform: rotate(45deg); }
+    .crowd-bubble .rc-shape-diamond .cb-icon { transform: rotate(-45deg); }
+    .crowd-bubble .cb-icon  { font-size: 2.4rem; line-height: 1; filter: drop-shadow(0 0 14px var(--cb-glow)); }
     .crowd-bubble .cb-label { font-family: 'Space Mono', monospace; font-size: 0.75rem; font-weight: 700;
                                color: var(--cb-clr); text-shadow: 0 0 12px var(--cb-glow); letter-spacing: 0.04em; white-space: nowrap; }
   </style>
@@ -325,21 +339,20 @@
 
   <!-- 스크립트 로딩 순서: spec → garden → tracker → renderer → main -->
   <script>
-    // 관객 리액션 버블 (나무 화면에 Zoom 스타일로 떠오름)
-    const _CROWD_BUBBLE_MAP = {
-      '오~':   { icon: '😮', clr: '#00ff99', glow: 'rgba(0,255,140,0.85)' },
-      '와우':  { icon: '🤩', clr: '#00ffcc', glow: 'rgba(0,255,200,0.85)' },
-      '굿':    { icon: '👍', clr: '#00ff99', glow: 'rgba(0,255,140,0.85)' },
-      '에이':  { icon: '😒', clr: '#ee55ff', glow: 'rgba(238,85,255,0.85)' },
-      '별로':  { icon: '👎', clr: '#dd44ff', glow: 'rgba(220,68,255,0.85)' },
-      '흠...': { icon: '🤔', clr: '#cc44ff', glow: 'rgba(200,68,255,0.85)' },
-    };
+    // 관객 리액션 버블 (나무 화면 — spec.json CROWD_REACTIONS와 리모콘 동기화)
+    function _getCrowdReactionCfg(text, sentiment) {
+      const r = window.SPEC && window.SPEC.CROWD_REACTIONS;
+      if (r && r[text]) {
+        return { icon: r[text].emoji, clr: r[text].color, glow: r[text].glow, shape: r[text].shape };
+      }
+      return sentiment === 'pos'
+        ? { icon: '✨', clr: '#32FF72', glow: 'rgba(50,255,114,0.9)', shape: 'circle' }
+        : { icon: '💨', clr: '#FF2244', glow: 'rgba(255,34,68,0.9)', shape: 'hex' };
+    }
     const _floatLayer = () => document.getElementById('crowd-float-layer');
 
     window.spawnCrowdBubble = function(text, sentiment) {
-      const cfg = _CROWD_BUBBLE_MAP[text] || (sentiment === 'pos'
-        ? { icon: '✨', clr: '#00ff99', glow: 'rgba(0,255,140,0.85)' }
-        : { icon: '💨', clr: '#ee55ff', glow: 'rgba(238,85,255,0.85)' });
+      const cfg = _getCrowdReactionCfg(text, sentiment);
       const layer = _floatLayer();
       if (!layer) return;
 
@@ -357,7 +370,8 @@
             `--cb-clr:${cfg.clr}`,
             `--cb-glow:${cfg.glow}`,
           ].join(';');
-          el.innerHTML = `<span class="cb-icon">${cfg.icon}</span><span class="cb-label">${text}</span>`;
+          const shape = cfg.shape || 'circle';
+          el.innerHTML = `<div class="cb-badge rc-shape-${shape}"><span class="cb-icon">${cfg.icon}</span></div><span class="cb-label">${text}</span>`;
           layer.appendChild(el);
           el.addEventListener('animationend', () => el.remove());
         }, i * 130);
