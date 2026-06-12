@@ -10,6 +10,9 @@ const Tracker = (() => {
 
   // CPM 계산용: 최근 3초 안의 키 입력 시각 배열
   let keystrokeTimestamps = [];
+  // 클릭/마우스무브 분당 횟수용 (최근 10초 슬라이딩 윈도우)
+  let clickTimestamps     = [];
+  let mouseMoveTimestamps = [];
   // 오타율 계산용
   let backspaceCount = 0;
   let totalKeyCount = 0;
@@ -23,6 +26,8 @@ const Tracker = (() => {
   let lastMouseThrottle = 0;
   // 현재 CPM과 타이핑 상태
   let cpm = 0;
+  let clicksPerMin = 0;
+  let movesPerMin  = 0;
   let typingState = 'NORMAL';
   // 관객 이벤트 발생 플래그 (renderer 파티클 트리거용)
   let pendingCrowdEvent = false;
@@ -36,12 +41,23 @@ const Tracker = (() => {
     return keystrokeTimestamps.length * 20; // 3초 기준 → 분당 환산
   }
 
+  // 슬라이딩 윈도우(10초)로 클릭/마우스무브 분당 횟수 계산
+  function calcRatePerMin(timestamps) {
+    const now = Date.now();
+    const filtered = timestamps.filter(t => now - t < 10000);
+    timestamps.length = 0;
+    filtered.forEach(t => timestamps.push(t));
+    return Math.round(filtered.length * 6); // 10초 기준 → 분당 환산
+  }
+
   // 매초 실행되는 스코어 업데이트 루프
   function tick() {
     const now = Date.now();
     const idleMs = now - lastInputTime;
 
-    cpm = calcCurrentCPM();
+    cpm          = calcCurrentCPM();
+    clicksPerMin = calcRatePerMin(clickTimestamps);
+    movesPerMin  = calcRatePerMin(mouseMoveTimestamps);
     const bsRatio = totalKeyCount > 0 ? backspaceCount / totalKeyCount : 0;
     typingState = detectTypingState(cpm, bsRatio);
 
@@ -109,10 +125,13 @@ const Tracker = (() => {
     lastMouseThrottle = now;
     lastInputTime = now;
     mouseMoveThisSecond = true;
+    mouseMoveTimestamps.push(now);
   }
 
   function onMouseClick() {
-    lastInputTime = Date.now();
+    const now = Date.now();
+    lastInputTime = now;
+    clickTimestamps.push(now);
     score = calcShortInput(score);
   }
 
@@ -182,6 +201,8 @@ const Tracker = (() => {
       score,
       state: getPlantState(score),
       cpm: Math.round(cpm),
+      clicksPerMin,
+      movesPerMin,
       typingState,
       hasCrowdEvent: hasCrowd,
     };
