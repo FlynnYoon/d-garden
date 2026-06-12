@@ -59,10 +59,18 @@ const RealtimeClient = (() => {
 
       channel
         .on('broadcast', { event: 'crowd_message' }, ({ payload }) => {
-          // 관객 메시지 수신 → Tracker에 전달 (점수·파티클 연동)
-          const text = payload && payload.text ? String(payload.text) : '';
-          if (text && typeof Tracker !== 'undefined') {
-            Tracker.onCrowdMessage(text);
+          if (!payload || typeof Tracker === 'undefined') return;
+          const text = payload.text ? String(payload.text) : '';
+          if (!text) return;
+
+          // sentiment 필드가 있으면 키워드 판정 없이 직접 적용
+          // 없으면 기존 POSITIVE_KEYWORDS / NEGATIVE_KEYWORDS 키워드 매칭으로 폴백
+          if (payload.sentiment === 'pos') {
+            Tracker.onCrowdMessage('화이팅'); // 긍정 키워드로 전달
+          } else if (payload.sentiment === 'neg') {
+            Tracker.onCrowdMessage('에이');   // 부정 키워드로 전달
+          } else {
+            Tracker.onCrowdMessage(text);     // 구버전 호환 폴백
           }
         })
         .subscribe((status) => {

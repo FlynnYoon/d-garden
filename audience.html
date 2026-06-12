@@ -271,7 +271,7 @@
         await channel.send({
           type:    'broadcast',
           event:   'crowd_message',
-          payload: { text },
+          payload: { text, sentiment: type }, // 'pos' | 'neg' 직접 전달
         });
         sentCount++;
         sentCountEl.textContent = `이번 세션 ${sentCount}회 전송`;
