@@ -431,8 +431,8 @@ const Renderer = (() => {
 
       drawLeaf(tip.x, tip.y, tip.angle, currentLeafSize, ep, time, leafProgress, leafDir, droop);
 
-      // ── 2번째 잎: 50% 확률 — 같은 점이 아니라 가지를 따라 뒤로 물려 배치 ──
-      if (seededRandom(tip.id * 47 + 7) > 0.50) {
+      // ── 2번째 잎: 30% 확률 ──
+      if (seededRandom(tip.id * 47 + 7) > 0.70) {
         const subSeed     = Math.sin(tip.x * 8.7 + tip.y * 33.2 + 1.5);
         const absSubS     = Math.abs(subSeed);
         const subMaxSize  = BASE_LEAF_SIZE * (0.75 + absSubS * 2.2);
@@ -448,8 +448,8 @@ const Renderer = (() => {
         }
       }
 
-      // ── 3번째 잎: 35% 확률 — 가지를 따라 더 뒤쪽에 배치 ──
-      if (seededRandom(tip.id * 61 + 11) > 0.65) {
+      // ── 3번째 잎: 15% 확률 ──
+      if (seededRandom(tip.id * 61 + 11) > 0.85) {
         const triSeed     = Math.sin(tip.x * 5.5 + tip.y * 22.1 + 3.0);
         const absTriS     = Math.abs(triSeed);
         const triMaxSize  = BASE_LEAF_SIZE * (0.65 + absTriS * 1.8);
@@ -467,8 +467,8 @@ const Renderer = (() => {
 
       // ── 4번째·5번째 잎: 제거 (성능 최적화) ──
 
-      // ── 잎 끝 반짝임 (15% 확률, 성능 최적화: 30% → 15%) ──
-      if (leafProgress > 0.9 && seededRandom(tip.id * 113 + 29) > 0.85) {
+      // ── 잎 끝 반짝임 (5% 확률) ──
+      if (leafProgress > 0.9 && seededRandom(tip.id * 113 + 29) > 0.95) {
         const sparkPhase = Math.sin(time * 0.007 + tip.x * 0.03 + tip.y * 0.025);
         if (sparkPhase > 0.5) {
           ctx.save();
