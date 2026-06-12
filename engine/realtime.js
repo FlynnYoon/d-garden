@@ -63,14 +63,12 @@ const RealtimeClient = (() => {
           const text = payload.text ? String(payload.text) : '';
           if (!text) return;
 
-          // sentiment 필드가 있으면 키워드 판정 없이 직접 적용
-          // 없으면 기존 POSITIVE_KEYWORDS / NEGATIVE_KEYWORDS 키워드 매칭으로 폴백
-          if (payload.sentiment === 'pos') {
-            Tracker.onCrowdMessage('화이팅'); // 긍정 키워드로 전달
-          } else if (payload.sentiment === 'neg') {
-            Tracker.onCrowdMessage('에이');   // 부정 키워드로 전달
+          // sentiment 필드가 있으면 키워드 매칭 완전 우회 (onCrowdDirect)
+          // 없으면 기존 키워드 매칭 폴백
+          if (payload.sentiment === 'pos' || payload.sentiment === 'neg') {
+            Tracker.onCrowdDirect(payload.sentiment);
           } else {
-            Tracker.onCrowdMessage(text);     // 구버전 호환 폴백
+            Tracker.onCrowdMessage(text);
           }
         })
         .subscribe((status) => {

@@ -152,13 +152,24 @@ const Tracker = (() => {
     mouseMoveThisSecond = true; // tick()에서 초당 1회 calcMouseMove 적용
   }
 
-  // 관객 메시지 수신 시 외부에서 호출
+  // 관객 메시지 수신 시 외부에서 호출 (키워드 텍스트 매칭)
   function onCrowdMessage(keyword) {
     const prev = score;
     score = calcCrowdReaction(score, keyword, crowdUsedThisSec);
     const delta = Math.abs(score - prev);
     crowdUsedThisSec += delta;
     if (delta > 0) pendingCrowdEvent = true;
+  }
+
+  // 버튼 리모콘용 — 키워드 매칭 없이 sentiment('pos'|'neg')로 직접 점수 적용
+  function onCrowdDirect(sentiment) {
+    const remaining = (SPEC.CROWD_LIMIT_PER_SEC || 5) - crowdUsedThisSec;
+    if (remaining <= 0) return;
+    const base  = sentiment === 'pos' ? (SPEC.CROWD_POSITIVE_SCORE || 2) : -(SPEC.CROWD_NEGATIVE_SCORE ? Math.abs(SPEC.CROWD_NEGATIVE_SCORE) : 2);
+    const delta = Math.sign(base) * Math.min(Math.abs(base), remaining);
+    score = clampScore(score + delta);
+    crowdUsedThisSec += Math.abs(delta);
+    if (Math.abs(delta) > 0) pendingCrowdEvent = true;
   }
 
   // 현재 상태를 renderer/UI로 전달하기 위한 스냅샷
@@ -176,5 +187,5 @@ const Tracker = (() => {
     };
   }
 
-  return { init, onCrowdMessage, onEditorActivity, onEditorMouseMove, getState };
+  return { init, onCrowdMessage, onCrowdDirect, onEditorActivity, onEditorMouseMove, getState };
 })();

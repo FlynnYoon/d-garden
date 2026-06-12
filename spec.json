@@ -39,8 +39,8 @@
     "TENDRIL_COUNT": 22,
     "LOTUS_MOTE_COUNT": 12
   },
-  "CPM_FOCUS_THRESHOLD": 300,
-  "CPM_OVERHEAT_THRESHOLD": 400,
+  "CPM_FOCUS_THRESHOLD": 500,
+  "CPM_OVERHEAT_THRESHOLD": 700,
   "BACKSPACE_RATIO_THRESHOLD": 0.20,
   "POSITIVE_KEYWORDS": ["오~", "와우", "굿", "화이팅", "이겨라", "최고야", "잘한다", "대박", "멋있어", "짱이다", "파이팅", "완벽해", "응원해", "굳", "킹받", "레전드", "갓"],
   "NEGATIVE_KEYWORDS": ["흠...", "에이", "별로", "지루해", "못해", "실망", "노잼", "졌다", "힘들겠다", "그게뭐야", "별로다", "망했다"],
