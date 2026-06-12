@@ -129,45 +129,45 @@
       border-color: rgba(0,220,200,0.88); box-shadow: 0 0 36px rgba(0,220,200,0.42);
     }
 
-    /* ── 부정 3종 : 보라 계열 (핫바이올렛→미드퍼플→딥인디고) ── */
+    /* ── 부정 3종 : 불꽃 계열 (핫레드→오렌지→앰버) ── */
 
-    /* 에이 : 핫 바이올렛 — 강하고 직접적인 실망 */
+    /* 에이 : 핫 레드 — 강하고 직접적인 실망 */
     .btn-ei {
-      background: linear-gradient(145deg, rgba(200,60,255,0.16) 0%, rgba(140,0,200,0.08) 100%);
-      border-color: rgba(200,60,255,0.32);
-      color: #c83cff;
-      box-shadow: 0 2px 20px rgba(200,60,255,0.10), inset 0 1px 0 rgba(200,60,255,0.14);
-      text-shadow: 0 0 18px rgba(200,60,255,0.82);
+      background: linear-gradient(145deg, rgba(255,50,80,0.16) 0%, rgba(180,0,40,0.08) 100%);
+      border-color: rgba(255,50,80,0.34);
+      color: #ff3250;
+      box-shadow: 0 2px 20px rgba(255,50,80,0.10), inset 0 1px 0 rgba(255,50,80,0.14);
+      text-shadow: 0 0 18px rgba(255,50,80,0.85);
     }
     .btn-ei:active {
-      background: linear-gradient(145deg, rgba(200,60,255,0.36) 0%, rgba(160,0,230,0.24) 100%);
-      border-color: rgba(200,60,255,0.85); box-shadow: 0 0 36px rgba(200,60,255,0.38);
+      background: linear-gradient(145deg, rgba(255,50,80,0.38) 0%, rgba(200,0,50,0.24) 100%);
+      border-color: rgba(255,50,80,0.88); box-shadow: 0 0 36px rgba(255,50,80,0.42);
     }
 
-    /* 별로 : 미드 퍼플 — 무기력하고 지루한 노잼 */
+    /* 별로 : 오렌지 — 무기력하고 지루한 노잼 */
     .btn-meh {
-      background: linear-gradient(145deg, rgba(150,80,255,0.16) 0%, rgba(90,30,180,0.08) 100%);
-      border-color: rgba(150,80,255,0.32);
-      color: #9650ff;
-      box-shadow: 0 2px 20px rgba(150,80,255,0.10), inset 0 1px 0 rgba(150,80,255,0.14);
-      text-shadow: 0 0 18px rgba(150,80,255,0.82);
+      background: linear-gradient(145deg, rgba(255,140,0,0.16) 0%, rgba(180,80,0,0.08) 100%);
+      border-color: rgba(255,140,0,0.34);
+      color: #ff8c00;
+      box-shadow: 0 2px 20px rgba(255,140,0,0.10), inset 0 1px 0 rgba(255,140,0,0.14);
+      text-shadow: 0 0 18px rgba(255,140,0,0.85);
     }
     .btn-meh:active {
-      background: linear-gradient(145deg, rgba(150,80,255,0.36) 0%, rgba(100,40,210,0.24) 100%);
-      border-color: rgba(150,80,255,0.85); box-shadow: 0 0 36px rgba(150,80,255,0.38);
+      background: linear-gradient(145deg, rgba(255,140,0,0.38) 0%, rgba(200,100,0,0.24) 100%);
+      border-color: rgba(255,140,0,0.88); box-shadow: 0 0 36px rgba(255,140,0,0.42);
     }
 
-    /* 흠... : 딥 인디고 — 차갑고 묵직한 의심 */
+    /* 흠... : 앰버/골드 — 차갑게 의심하는 눈빛 */
     .btn-hmm {
-      background: linear-gradient(145deg, rgba(100,60,220,0.16) 0%, rgba(50,20,160,0.08) 100%);
-      border-color: rgba(100,60,220,0.32);
-      color: #643cdc;
-      box-shadow: 0 2px 20px rgba(100,60,220,0.10), inset 0 1px 0 rgba(100,60,220,0.14);
-      text-shadow: 0 0 18px rgba(120,80,255,0.82);
+      background: linear-gradient(145deg, rgba(220,180,0,0.16) 0%, rgba(160,100,0,0.08) 100%);
+      border-color: rgba(220,180,0,0.34);
+      color: #dcb400;
+      box-shadow: 0 2px 20px rgba(220,180,0,0.10), inset 0 1px 0 rgba(220,180,0,0.14);
+      text-shadow: 0 0 18px rgba(220,180,0,0.85);
     }
     .btn-hmm:active {
-      background: linear-gradient(145deg, rgba(100,60,220,0.36) 0%, rgba(60,30,190,0.24) 100%);
-      border-color: rgba(100,60,220,0.85); box-shadow: 0 0 36px rgba(100,60,220,0.38);
+      background: linear-gradient(145deg, rgba(220,180,0,0.38) 0%, rgba(180,130,0,0.24) 100%);
+      border-color: rgba(220,180,0,0.88); box-shadow: 0 0 36px rgba(220,180,0,0.42);
     }
 
     /* 전송 시 펄스 링 애니메이션 */
@@ -183,7 +183,7 @@
       pointer-events: none;
     }
     .ripple-ring.pos { background: rgba(0,180,255,0.22); }
-    .ripple-ring.neg { background: rgba(170,60,255,0.20); }
+    .ripple-ring.neg { background: rgba(255,80,60,0.20); }
 
     /* 연결 상태 도트 */
     .status-dot {
@@ -268,9 +268,11 @@
 
       <!-- 긍정 섹션 -->
       <div class="flex flex-col gap-3 flex-1">
-        <p style="font-size:0.58rem;color:rgba(0,190,255,0.55);letter-spacing:0.14em;text-transform:uppercase;font-family:'Space Mono',monospace;">
-          ▲ 긍정 에너지
-        </p>
+        <div class="flex items-center gap-2">
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(0,180,255,0.5),rgba(0,180,255,0.08));"></div>
+          <span style="font-family:'Inter',sans-serif;font-size:0.6rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#00b4ff;text-shadow:0 0 12px rgba(0,180,255,0.7);">⚡ 긍정 에너지</span>
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(0,180,255,0.08),rgba(0,180,255,0.5));"></div>
+        </div>
         <div class="grid grid-cols-3 gap-3 flex-1">
           <button class="remote-btn btn-oh" onclick="send('오~', 'pos')">
             <span class="btn-emoji">😮</span>
@@ -291,13 +293,15 @@
       </div>
 
       <!-- 구분선 -->
-      <div style="height:1px;background:rgba(255,255,255,0.06);"></div>
+      <div style="height:1px;background:linear-gradient(90deg,rgba(0,180,255,0.15),rgba(255,80,60,0.15));"></div>
 
       <!-- 부정 섹션 -->
       <div class="flex flex-col gap-3 flex-1">
-        <p style="font-size:0.58rem;color:rgba(160,80,255,0.55);letter-spacing:0.14em;text-transform:uppercase;font-family:'Space Mono',monospace;">
-          ▼ 부정 에너지
-        </p>
+        <div class="flex items-center gap-2">
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(255,80,60,0.5),rgba(255,80,60,0.08));"></div>
+          <span style="font-family:'Inter',sans-serif;font-size:0.6rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#ff5040;text-shadow:0 0 12px rgba(255,80,60,0.7);">🔥 부정 에너지</span>
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(255,80,60,0.08),rgba(255,80,60,0.5));"></div>
+        </div>
         <div class="grid grid-cols-3 gap-3 flex-1">
           <button class="remote-btn btn-ei" onclick="send('에이', 'neg')">
             <span class="btn-emoji">😤</span>
