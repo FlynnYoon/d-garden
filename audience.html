@@ -134,6 +134,47 @@
       opacity: 0.32;
       pointer-events: none;
     }
+
+    /* ── 플로팅 리액션 (Zoom 스타일) ── */
+    #float-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 200;
+      overflow: hidden;
+    }
+
+    @keyframes floatUp {
+      0%   { transform: translateY(0)   translateX(0)    scale(1);    opacity: 1; }
+      20%  { transform: translateY(-18vh) translateX(var(--sway1))  scale(1.08); opacity: 1; }
+      60%  { transform: translateY(-55vh) translateX(var(--sway2))  scale(0.96); opacity: 0.85; }
+      100% { transform: translateY(-95vh) translateX(var(--sway3))  scale(0.75); opacity: 0; }
+    }
+
+    .float-bubble {
+      position: absolute;
+      bottom: 90px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      animation: floatUp 2.8s cubic-bezier(0.22, 0.68, 0, 1.2) forwards;
+      will-change: transform, opacity;
+    }
+    .float-bubble .f-icon {
+      font-size: 2.2rem;
+      line-height: 1;
+      filter: drop-shadow(0 0 8px var(--glow));
+    }
+    .float-bubble .f-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--clr);
+      text-shadow: 0 0 10px var(--glow);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -216,6 +257,9 @@
 
   </div>
 
+  <!-- 플로팅 리액션 레이어 -->
+  <div id="float-layer"></div>
+
   <!-- 토스트 -->
   <div id="toast" class="glass px-6 py-3">
     <p id="toast-msg" style="font-size:0.82rem;font-weight:600;"></p>
@@ -232,6 +276,39 @@
     const toast       = document.getElementById('toast');
     const toastMsg    = document.getElementById('toast-msg');
     const remoteCard  = document.getElementById('remote-card');
+    const floatLayer  = document.getElementById('float-layer');
+
+    // 버튼별 이모지 + 색상 매핑
+    const BUBBLE_MAP = {
+      '오~':  { icon: '😮', clr: '#00ff99', glow: 'rgba(0,255,140,0.8)' },
+      '와우':  { icon: '🤩', clr: '#00ff99', glow: 'rgba(0,255,140,0.8)' },
+      '굿':   { icon: '👍', clr: '#00ff99', glow: 'rgba(0,255,140,0.8)' },
+      '에이':  { icon: '😒', clr: '#ee55ff', glow: 'rgba(238,85,255,0.8)' },
+      '별로':  { icon: '👎', clr: '#ee55ff', glow: 'rgba(238,85,255,0.8)' },
+      '흠...': { icon: '🤔', clr: '#ee55ff', glow: 'rgba(238,85,255,0.8)' },
+    };
+
+    // Zoom 스타일 플로팅 버블 생성
+    function spawnBubble(text) {
+      const cfg = BUBBLE_MAP[text];
+      if (!cfg) return;
+
+      // 화면 너비의 20~80% 사이 랜덤 X
+      const xPct = 12 + Math.random() * 70;
+      // 3단계 좌우 흔들림 (최대 ±22px)
+      const s1 = (Math.random() - 0.5) * 22 + 'px';
+      const s2 = (Math.random() - 0.5) * 28 + 'px';
+      const s3 = (Math.random() - 0.5) * 18 + 'px';
+
+      const el = document.createElement('div');
+      el.className = 'float-bubble';
+      el.style.cssText = `left:${xPct}%; --sway1:${s1}; --sway2:${s2}; --sway3:${s3}; --clr:${cfg.clr}; --glow:${cfg.glow};`;
+      el.innerHTML = `<span class="f-icon">${cfg.icon}</span><span class="f-label">${text}</span>`;
+
+      floatLayer.appendChild(el);
+      // 애니메이션 끝나면 DOM 정리
+      el.addEventListener('animationend', () => el.remove());
+    }
 
     // ─── 연결 상태 ─────────────────────────────────────────────────
     function setStatus(state, text) {
@@ -267,6 +344,13 @@
       if (!channel || !connected) return;
       const btn = event.currentTarget;
       triggerRipple(btn, type);
+
+      // 플로팅 버블 3~5개 시차를 두고 터뜨리기
+      const count = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => spawnBubble(text), i * 120);
+      }
+
       try {
         await channel.send({
           type:    'broadcast',
